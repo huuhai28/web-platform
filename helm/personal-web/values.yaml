@@ -1,0 +1,68 @@
+global:
+  # Bắt buộc truyền từ PERSONAL_WEB_EXTERNAL_URL trong file .env.
+  externalUrl: ""
+
+existingSecret: platform-secrets
+
+frontend:
+  replicas: 2
+  image:
+    repository: personal-web/frontend
+    tag: local
+    pullPolicy: IfNotPresent
+  service:
+    # Bắt buộc truyền từ PERSONAL_WEB_NODE_PORT trong file .env.
+    nodePort: 0
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+backend:
+  replicas: 2
+  image:
+    repository: personal-web/backend
+    tag: local
+    pullPolicy: IfNotPresent
+  config:
+    appEnv: kubernetes
+    # Bắt buộc truyền từ PERSONAL_WEB_CONTACT_RECEIVER_EMAIL trong file .env.
+    contactReceiverEmail: ""
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+worker:
+  replicas: 1
+  concurrency: 2
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+keycloak:
+  replicas: 1
+  image: quay.io/keycloak/keycloak:26.4
+  realm: personal-web
+  clientId: portfolio-frontend
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+postgres:
+  image: postgres:17-alpine
+  storage: 2Gi
+  storageClass: ""
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+redis:
+  image: redis:7.4-alpine
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+mailpit:
+  image: axllent/mailpit:v1.27
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }

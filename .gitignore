@@ -1,0 +1,35 @@
+# ---- Bí mật: không bao giờ commit ----
+.env
+.env.*
+!.env.example
+!.env.prod.example
+k8s/overlays/local/secrets.yaml
+*.pem
+*.key
+kubeconfig*
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+
+# ---- Node / build ----
+node_modules/
+dist/
+
+# ---- Khác ----
+*.log
+*.rar
+*.zip
+*.tar.gz
+.idea/
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
+
+# Bản React cũ, chỉ giữ ở máy local để tham khảo
+archive/

@@ -1,0 +1,69 @@
+{
+  "realm": "personal-web",
+  "displayName": "Personal Web Platform",
+  "enabled": true,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      { "name": "portfolio-user", "description": "Authenticated portfolio visitor" },
+      { "name": "portfolio-admin", "description": "Can read contact messages" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "portfolio-frontend",
+      "name": "Portfolio Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "http://localhost:30080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:30080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "hai",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Hải",
+      "lastName": "Nguyễn",
+      "email": "hai@example.com",
+      "credentials": [
+        { "type": "password", "value": "ChangeMe123!", "temporary": false }
+      ],
+      "realmRoles": ["portfolio-user", "portfolio-admin"]
+    },
+    {
+      "username": "demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Visitor",
+      "email": "demo@example.com",
+      "credentials": [
+        { "type": "password", "value": "Demo123!", "temporary": false }
+      ],
+      "realmRoles": ["portfolio-user"]
+    }
+  ]
+}
+

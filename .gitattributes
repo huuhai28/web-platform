@@ -1,0 +1,5 @@
+# Mọi file văn bản dùng LF (chạy trong container Linux); ảnh giữ nguyên nhị phân
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

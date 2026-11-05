@@ -1,0 +1,170 @@
+# =============================================================================
+# PRODUCTION — chạy trên VPS
+#   cp .env.prod.example .env.prod   # rồi điền giá trị thật
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Khác bản dev (docker-compose.yml):
+#   - Chỉ Caddy mở cổng 80/443 ra Internet; mọi service khác nằm trong mạng nội bộ.
+#   - HTTPS tự động (Let's Encrypt), Keycloak chạy production mode (start --optimized).
+#   - Mỗi service có user DB riêng, không có mật khẩu mặc định, không có Mailpit.
+#   - Giới hạn RAM, xoay vòng log, healthcheck cho từng service.
+# =============================================================================
+name: personal-web-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend-env: &backend-env
+  APP_ENV: production
+  DATABASE_URL: postgresql+psycopg://portfolio:${APP_DB_PASSWORD:?}@postgres:5432/portfolio
+  REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379/0
+  KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+  KEYCLOAK_ISSUER: https://${DOMAIN:?}/auth/realms/personal-web
+  KEYCLOAK_REALM: personal-web
+  CORS_ORIGINS: https://${DOMAIN}
+  SMTP_HOST: ${SMTP_HOST:?}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  SMTP_FROM: ${SMTP_FROM:?}
+  CONTACT_RECEIVER_EMAIL: ${CONTACT_RECEIVER_EMAIL:?}
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      DOMAIN: ${DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # chứng chỉ HTTPS — đừng xóa volume này
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+    logging: *logging
+
+  frontend:
+    build: ./frontend
+    image: ${REGISTRY_IMAGE:-personal-web}/frontend:${IMAGE_TAG:-latest}
+    depends_on:
+      backend: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64M } } }
+    logging: *logging
+
+  backend:
+    build: ./backend
+    image: ${REGISTRY_IMAGE:-personal-web}/backend:${IMAGE_TAG:-latest}
+    environment: *backend-env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+    logging: *logging
+
+  worker:
+    build: ./backend # cùng image với backend (build lần 2 lấy từ cache)
+    image: ${REGISTRY_IMAGE:-personal-web}/backend:${IMAGE_TAG:-latest}
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
+    environment: *backend-env
+    depends_on:
+      backend: { condition: service_healthy } # backend tạo bảng DB và build image trước
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 256M } } }
+    logging: *logging
+
+  keycloak:
+    build: ./infra/keycloak
+    image: ${REGISTRY_IMAGE:-personal-web}/keycloak:${IMAGE_TAG:-latest}
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+      KC_HOSTNAME: https://${DOMAIN}/auth
+      # Trang quản trị chỉ mở qua SSH tunnel: ssh -L 8080:127.0.0.1:8080 user@vps
+      KC_HOSTNAME_ADMIN: http://localhost:8080/auth
+      KC_HTTP_ENABLED: "true" # TLS kết thúc ở Caddy; trong mạng nội bộ dùng HTTP
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:?}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?}
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=25"
+      # Giá trị thay vào ${...} trong realm-export.prod.json khi import lần đầu
+      PUBLIC_URL: https://${DOMAIN}
+      PORTFOLIO_ADMIN_USERNAME: ${PORTFOLIO_ADMIN_USERNAME:?}
+      PORTFOLIO_ADMIN_EMAIL: ${PORTFOLIO_ADMIN_EMAIL:?}
+      PORTFOLIO_ADMIN_PASSWORD: ${PORTFOLIO_ADMIN_PASSWORD:?}
+    ports:
+      - "127.0.0.1:8080:8080" # chỉ lắng nghe trên localhost của VPS, KHÔNG public
+    volumes:
+      - ./infra/keycloak/realm-export.prod.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      # Image Keycloak không có curl → dùng /dev/tcp của bash gọi cổng management 9000
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /auth/health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 1024M } } }
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-prod:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d portfolio"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 384M } } }
+    logging: *logging
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?}", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128M } } }
+    logging: *logging
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

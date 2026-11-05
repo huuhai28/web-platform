@@ -1,0 +1,56 @@
+{
+  "realm": "personal-web",
+  "displayName": "Personal Web Platform",
+  "enabled": true,
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": false,
+  "rememberMe": true,
+  "sslRequired": "external",
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "passwordPolicy": "length(12) and notUsername",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "roles": {
+    "realm": [
+      { "name": "portfolio-user", "description": "Authenticated portfolio visitor" },
+      { "name": "portfolio-admin", "description": "Can read contact messages" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "portfolio-frontend",
+      "name": "Portfolio Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": ["${PUBLIC_URL}/*"],
+      "webOrigins": ["${PUBLIC_URL}"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${PUBLIC_URL}/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "${PORTFOLIO_ADMIN_USERNAME}",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Hải",
+      "lastName": "Nguyễn",
+      "email": "${PORTFOLIO_ADMIN_EMAIL}",
+      "credentials": [
+        { "type": "password", "value": "${PORTFOLIO_ADMIN_PASSWORD}", "temporary": false }
+      ],
+      "realmRoles": ["portfolio-user", "portfolio-admin"]
+    }
+  ]
+}

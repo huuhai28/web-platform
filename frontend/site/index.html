@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nguyễn Hữu Hải · DevOps & Cloud Engineer</title>
+  <meta name="description" content="Portfolio của Nguyễn Hữu Hải — DevOps, Cloud và Platform Engineering. Docker, Kubernetes, Terraform, GitLab CI/CD.">
+  <meta name="theme-color" content="#f6f7f9">
+  <meta property="og:title" content="Nguyen Huu Hai · DevOps & Cloud Engineer">
+  <meta property="og:description" content="DevOps & Cloud portfolio — Docker, Kubernetes, Terraform, GitLab CI/CD.">
+  <meta property="og:type" content="website">
+  <link rel="alternate" hreflang="vi" href="/?lang=vi">
+  <link rel="alternate" hreflang="en" href="/?lang=en">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+  <link rel="stylesheet" href="/css/styles.css?v=6">
+  <script src="/js/i18n.js?v=6" defer></script>
+  <script src="/js/data.js?v=6" defer></script>
+  <script src="/js/auth.js?v=6" defer></script>
+  <script src="/js/app.js?v=6" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">Bỏ qua tới nội dung</a>
+
+  <!-- ========== HEADER ========== -->
+  <header class="site-header" id="top">
+    <div class="shell header-inner">
+      <a class="brand" href="#top" data-i18n-attr="aria-label:a11y.home" aria-label="Về đầu trang">Hải<span>.</span></a>
+
+      <nav class="nav" id="nav" data-i18n-attr="aria-label:a11y.mainNav" aria-label="Điều hướng chính">
+        <a href="#about" data-i18n="nav.about">Giới thiệu</a>
+        <a href="#skills" data-i18n="nav.skills">Kỹ năng</a>
+        <a href="#projects" data-i18n="nav.projects">Dự án</a>
+        <a href="#architecture" data-i18n="nav.architecture">Kiến trúc</a>
+        <a href="#contact" class="nav-mobile-only" data-i18n="nav.contact">Liên hệ</a>
+      </nav>
+
+      <div class="header-actions">
+        <!-- Chỉ hiện khi chủ trang đã đăng nhập (vào bằng đường dẫn /#admin) -->
+        <div class="auth-slot" id="auth-slot"></div>
+        <div class="lang-switch" role="group" data-i18n-attr="aria-label:a11y.lang" aria-label="Chọn ngôn ngữ">
+          <button type="button" data-lang="vi" lang="vi">VI</button>
+          <button type="button" data-lang="en" lang="en">EN</button>
+        </div>
+        <a class="btn btn-dark btn-sm" href="#contact"><span data-i18n="nav.contact">Liên hệ</span> <span aria-hidden="true">↗</span></a>
+        <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Mở menu" aria-expanded="false" aria-controls="nav">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ========== HERO ========== -->
+    <section class="hero shell">
+      <div class="hero-copy">
+        <p class="eyebrow reveal"><span class="eyebrow-line"></span><span data-i18n="hero.hello">Xin chào, tôi là</span></p>
+        <h1 class="hero-title reveal" data-delay="1">Nguyễn<br>Hữu Hải<span class="dot">.</span></h1>
+        <p class="hero-role reveal" data-delay="2" id="profile-role">DevOps & Cloud Engineer</p>
+        <p class="hero-summary reveal" data-delay="2" id="profile-summary"></p>
+        <div class="hero-actions reveal" data-delay="3">
+          <a class="btn btn-primary" href="#projects"><span data-i18n="hero.ctaProjects">Xem dự án</span> <span aria-hidden="true">↓</span></a>
+          <a class="btn btn-outline" href="#contact"><span data-i18n="hero.ctaContact">Trao đổi công việc</span> <span aria-hidden="true">↗</span></a>
+        </div>
+        <ul class="hero-meta reveal" data-delay="3">
+          <li id="profile-location"></li>
+          <li><span id="local-clock">--:--</span> GMT+7</li>
+          <li class="status"><span class="status-dot"></span><span id="profile-availability"></span></li>
+        </ul>
+      </div>
+
+      <div class="hero-visual reveal" data-delay="2">
+        <figure class="portrait">
+          <img id="portrait-img" src="/assets/avatar.jpg" data-i18n-attr="alt:a11y.portrait" alt="Ảnh chân dung Nguyễn Hữu Hải" width="420" height="520">
+          <div class="portrait-fallback" aria-hidden="true">NH</div>
+          <figcaption>
+            <strong>Nguyễn Hữu Hải</strong>
+            <span>DevOps · Cloud · Platform</span>
+          </figcaption>
+        </figure>
+
+        <div class="chip chip-a"><span class="chip-icon">☸</span>Kubernetes</div>
+        <div class="chip chip-b"><span class="chip-icon">⚙</span>GitLab CI/CD</div>
+        <div class="chip chip-c"><span class="chip-icon">☁</span>Terraform · AWS</div>
+
+        <div class="terminal" data-i18n-attr="aria-label:a11y.status" aria-label="Trạng thái">
+          <div class="terminal-bar"><i></i><i></i><i></i><span>~/hai</span></div>
+          <code><span class="prompt">$</span> kubectl get engineer hai<br><b>NAME&nbsp;&nbsp;STATUS&nbsp;&nbsp;READY</b><br>hai&nbsp;&nbsp;&nbsp;Ready&nbsp;&nbsp;&nbsp;1/1</code>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== PROOF STRIP ========== -->
+    <section class="proof shell reveal" data-i18n-attr="aria-label:a11y.highlights" aria-label="Điểm nổi bật">
+      <div class="proof-item"><strong data-count="7">0</strong><span data-i18n="proof.services">service chạy trong project này</span></div>
+      <div class="proof-item"><strong>CI/CD</strong><span data-i18n="proof.cicd">GitLab pipeline build → deploy</span></div>
+      <div class="proof-item"><strong>K8s</strong><span data-i18n="proof.k8s">Kustomize, Helm, Ingress</span></div>
+      <div class="proof-item"><strong>IaC</strong><span data-i18n="proof.iac">Terraform trên AWS</span></div>
+    </section>
+
+    <!-- ========== ABOUT ========== -->
+    <section class="section shell" id="about">
+      <div class="section-head reveal">
+        <p class="kicker" data-i18n="about.kicker">01 — Giới thiệu</p>
+        <h2 data-i18n-html="about.title">Tôi học bằng cách xây dựng những hệ thống <em>chạy được thật.</em></h2>
+      </div>
+      <div class="about-grid">
+        <p class="about-text reveal" data-i18n="about.text"></p>
+        <div class="principles">
+          <article class="card principle reveal" data-delay="1">
+            <span class="num">01</span>
+            <h3>Infrastructure as Code</h3>
+            <p data-i18n="about.p1"></p>
+          </article>
+          <article class="card principle reveal" data-delay="2">
+            <span class="num">02</span>
+            <h3>Secure by default</h3>
+            <p data-i18n="about.p2"></p>
+          </article>
+          <article class="card principle reveal" data-delay="3">
+            <span class="num">03</span>
+            <h3>Measure first</h3>
+            <p data-i18n="about.p3"></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== SKILLS ========== -->
+    <section class="section shell" id="skills">
+      <div class="section-head section-head-row reveal">
+        <div>
+          <p class="kicker" data-i18n="skills.kicker">02 — Năng lực</p>
+          <h2 data-i18n-html="skills.title">Công cụ chỉ hữu ích khi <em>kết nối thành hệ thống.</em></h2>
+        </div>
+        <div class="filters" id="skill-filters" role="group" data-i18n-attr="aria-label:a11y.skillFilter" aria-label="Lọc kỹ năng"></div>
+      </div>
+      <div class="skill-grid" id="skill-grid"></div>
+    </section>
+
+    <!-- ========== PROJECTS ========== -->
+    <section class="section shell" id="projects">
+      <div class="section-head section-head-row reveal">
+        <div>
+          <p class="kicker" data-i18n="projects.kicker">03 — Dự án</p>
+          <h2 data-i18n-html="projects.title">Những bài toán tôi đang <em>biến thành kinh nghiệm.</em></h2>
+        </div>
+        <a class="link-arrow" href="https://github.com/" target="_blank" rel="noopener">GitHub <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="project-list" id="project-list"></div>
+    </section>
+
+    <!-- ========== ARCHITECTURE ========== -->
+    <section class="section shell" id="architecture">
+      <div class="arch card reveal">
+        <div class="arch-copy">
+          <p class="kicker" data-i18n="arch.kicker">Kiến trúc của chính trang này</p>
+          <h2 data-i18n-html="arch.title">Bảy service, <em>một luồng hoàn chỉnh.</em></h2>
+          <p data-i18n="arch.text"></p>
+        </div>
+        <ol class="arch-flow" id="arch-flow"></ol>
+      </div>
+    </section>
+
+    <!-- ========== ACCOUNT (hiện khi chủ trang đăng nhập qua /#admin) ========== -->
+    <section class="section shell" id="account" hidden>
+      <div class="account card">
+        <div>
+          <p class="kicker" data-i18n="account.kicker">Khu vực quản trị</p>
+          <h2><span data-i18n="account.hello">Xin chào,</span> <span id="account-name"></span>.</h2>
+          <p data-i18n="account.text"></p>
+          <p class="role-badge" id="account-role"></p>
+        </div>
+        <div class="admin-messages" id="admin-messages" hidden>
+          <h3 data-i18n="account.messages">Tin nhắn gần đây</h3>
+          <div id="message-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== CONTACT ========== -->
+    <section class="section shell" id="contact">
+      <div class="contact card reveal">
+        <div class="contact-copy">
+          <p class="kicker" data-i18n="contact.kicker">04 — Liên hệ</p>
+          <h2 data-i18n-html="contact.title">Có một hệ thống cần <em>làm cho gọn hơn?</em></h2>
+          <p data-i18n="contact.text"></p>
+          <a class="link-arrow" id="profile-email" href="mailto:hai@example.com">hai@example.com</a>
+        </div>
+        <form class="contact-form" id="contact-form" novalidate>
+          <div class="form-row">
+            <label><span data-i18n="form.name">Họ tên</span><input name="name" minlength="2" maxlength="120" required data-i18n-attr="placeholder:form.namePh" autocomplete="name"></label>
+            <label><span data-i18n="form.email">Email</span><input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label>
+          </div>
+          <label><span data-i18n="form.subject">Chủ đề</span><input name="subject" minlength="3" maxlength="200" required data-i18n-attr="placeholder:form.subjectPh"></label>
+          <label><span data-i18n="form.message">Nội dung</span><textarea name="message" minlength="10" maxlength="5000" required rows="5" data-i18n-attr="placeholder:form.messagePh"></textarea></label>
+          <button class="btn btn-primary" type="submit" id="contact-submit" data-i18n="form.submit">Gửi tin nhắn</button>
+          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer shell">
+    <span>© <span id="year">2026</span> Nguyễn Hữu Hải</span>
+    <span data-i18n="footer.built">Viết bằng HTML, CSS & JavaScript thuần · chạy trên Docker</span>
+    <a href="#top" data-i18n="footer.top">Lên đầu trang ↑</a>
+  </footer>
+</body>
+</html>

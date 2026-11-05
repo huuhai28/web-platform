@@ -1,0 +1,287 @@
+# =============================================================================
+# GitLab CI/CD — Personal Web Platform
+#
+#   validate ─► test ─► build ─► scan ─► deploy
+#
+#   validate : docker compose config (dev + prod), helm lint/template, kubeconform
+#   test     : pytest backend (SQLite), kiểm tra JS + bản dịch frontend
+#   build    : build 3 image (frontend, backend, keycloak), push GitLab Container Registry
+#              tag = commit SHA (bất biến) + latest trên nhánh chính
+#   scan     : Trivy quét lỗ hổng HIGH/CRITICAL (cảnh báo, không chặn pipeline)
+#   deploy   : SSH vào VPS → pull image theo SHA → docker compose up → kiểm tra /api/health
+#              (bấm tay, hoặc tự động khi đặt AUTO_DEPLOY=true)
+#              (tùy chọn) helm upgrade lên Kubernetes nếu có biến KUBECONFIG_FILE
+#   rollback : bấm tay, chạy lại bản cũ bằng ROLLBACK_TAG=<sha>
+#
+# Biến cần khai báo ở Settings → CI/CD → Variables (Masked + Protected):
+#   SSH_PRIVATE_KEY  (type File)  private key của user deploy trên VPS
+#   SSH_KNOWN_HOSTS                kết quả `ssh-keyscan <ip-vps>`
+#   DEPLOY_HOST                    IP hoặc domain VPS
+#   DEPLOY_USER                    user deploy, ví dụ: hai
+#   DEPLOY_PATH                    thư mục trên VPS, ví dụ: /home/hai/personal-web-platform
+#   PUBLIC_URL                     ví dụ: https://tenmien.com
+#   AUTO_DEPLOY (tùy chọn)         "true" để deploy tự động khi push nhánh chính
+#   KUBECONFIG_FILE (tùy chọn, File) để bật job deploy:k8s bằng Helm
+# =============================================================================
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+stages: [validate, test, build, scan, deploy]
+
+variables:
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  DOCKER_TLS_CERTDIR: "/certs"
+  COMPOSE_PROD: docker compose -f docker-compose.prod.yml --env-file .env.prod
+
+default:
+  interruptible: true
+
+# Chỉ chạy các job build/scan/deploy trên nhánh chính hoặc tag
+.on_release: &on_release
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# -----------------------------------------------------------------------------
+# VALIDATE
+# -----------------------------------------------------------------------------
+validate:compose:
+  stage: validate
+  image: docker:27-cli
+  script:
+    - docker compose -f docker-compose.yml config --quiet
+    # File mẫu có đủ biến bắt buộc nên dùng được để kiểm tra cú pháp bản prod
+    - docker compose -f docker-compose.prod.yml --env-file .env.prod.example config --quiet
+    - echo "Compose dev + prod hợp lệ"
+
+validate:helm:
+  stage: validate
+  image:
+    name: alpine/helm:3.16.4
+    entrypoint: [""]
+  script:
+    - |
+      HELM_ARGS="--set-string global.externalUrl=https://ci.example.com
+        --set frontend.service.nodePort=30777
+        --set-string backend.config.contactReceiverEmail=ci@example.com"
+    - helm lint helm/personal-web $HELM_ARGS
+    - helm template personal-web helm/personal-web --namespace personal-web $HELM_ARGS > rendered.yaml
+    - test -s rendered.yaml
+  artifacts:
+    paths: [rendered.yaml]
+    expire_in: 1 day
+
+validate:kubeconform:
+  stage: validate
+  needs: [validate:helm]
+  image:
+    name: ghcr.io/yannh/kubeconform:v0.6.7-alpine
+    entrypoint: [""]
+  script:
+    - /kubeconform -strict -summary -ignore-missing-schemas rendered.yaml
+    - /kubeconform -strict -summary -ignore-missing-schemas k8s/base/*.yaml
+
+# -----------------------------------------------------------------------------
+# TEST
+# -----------------------------------------------------------------------------
+test:backend:
+  stage: test
+  image: python:3.13-slim
+  needs: []
+  variables:
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+  cache:
+    key: pip-$CI_COMMIT_REF_SLUG
+    paths: [.cache/pip]
+  script:
+    - cd backend
+    - pip install -q -r requirements-dev.txt
+    - python -m pytest -v --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: backend/report.xml
+
+test:frontend:
+  stage: test
+  image: node:22-alpine
+  needs: []
+  script:
+    - node scripts/check_frontend.mjs
+
+# -----------------------------------------------------------------------------
+# BUILD — 3 image chạy song song, push lên GitLab Container Registry
+# -----------------------------------------------------------------------------
+build:
+  stage: build
+  image: docker:27
+  services: [docker:27-dind]
+  <<: *on_release
+  parallel:
+    matrix:
+      - COMPONENT: frontend
+        CONTEXT: frontend
+      - COMPONENT: backend
+        CONTEXT: backend
+      - COMPONENT: keycloak
+        CONTEXT: infra/keycloak
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - IMAGE="$CI_REGISTRY_IMAGE/$COMPONENT"
+    - docker pull "$IMAGE:latest" || true
+    - >
+      docker build
+      --cache-from "$IMAGE:latest"
+      --build-arg BUILDKIT_INLINE_CACHE=1
+      --label org.opencontainers.image.source="$CI_PROJECT_URL"
+      --label org.opencontainers.image.revision="$CI_COMMIT_SHA"
+      -t "$IMAGE:$IMAGE_TAG"
+      "$CONTEXT"
+    - docker push "$IMAGE:$IMAGE_TAG"
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$IMAGE:$IMAGE_TAG" "$IMAGE:latest"
+        docker push "$IMAGE:latest"
+      fi
+
+# -----------------------------------------------------------------------------
+# SCAN — Trivy
+# -----------------------------------------------------------------------------
+scan:trivy:
+  stage: scan
+  image:
+    name: aquasec/trivy:0.58.1
+    entrypoint: [""]
+  <<: *on_release
+  needs: [build]
+  allow_failure: true
+  parallel:
+    matrix:
+      - COMPONENT: [frontend, backend, keycloak]
+  variables:
+    TRIVY_USERNAME: $CI_REGISTRY_USER
+    TRIVY_PASSWORD: $CI_REGISTRY_PASSWORD
+    TRIVY_NO_PROGRESS: "true"
+    TRIVY_CACHE_DIR: .trivycache/
+  cache:
+    key: trivy
+    paths: [.trivycache/]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$CI_REGISTRY_IMAGE/$COMPONENT:$IMAGE_TAG"
+
+# -----------------------------------------------------------------------------
+# DEPLOY — Docker Compose trên VPS qua SSH
+# -----------------------------------------------------------------------------
+.ssh: &ssh
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache openssh-client tar curl >/dev/null
+    - install -d -m 700 ~/.ssh
+    - install -m 600 "$SSH_PRIVATE_KEY" ~/.ssh/id_deploy
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - SSH="ssh -i ~/.ssh/id_deploy -o BatchMode=yes $DEPLOY_USER@$DEPLOY_HOST"
+
+.compose_up: &compose_up |
+  # 1. Chép file cấu hình (không chép .env.prod — file bí mật chỉ nằm trên VPS)
+  tar czf - docker-compose.prod.yml infra scripts | $SSH "mkdir -p '$DEPLOY_PATH' && tar xzf - -C '$DEPLOY_PATH'"
+  # 2. Đăng nhập registry bằng CI_JOB_TOKEN (chỉ có hiệu lực trong lúc job chạy)
+  echo "$CI_JOB_TOKEN" | $SSH "docker login -u gitlab-ci-token --password-stdin '$CI_REGISTRY'"
+  # 3. Pull đúng image theo tag rồi khởi động lại các service có thay đổi
+  $SSH "cd '$DEPLOY_PATH' && export REGISTRY_IMAGE='$CI_REGISTRY_IMAGE' IMAGE_TAG='$DEPLOY_TAG' &&
+    $COMPOSE_PROD pull --quiet frontend backend worker keycloak &&
+    $COMPOSE_PROD up -d --no-build --remove-orphans &&
+    echo '$DEPLOY_TAG' > .deployed-tag &&
+    docker logout '$CI_REGISTRY' >/dev/null &&
+    docker image prune -f >/dev/null &&
+    $COMPOSE_PROD ps"
+  # 4. Kiểm tra từ bên ngoài: health API + HTTPS (HSTS)
+  for i in $(seq 1 30); do
+    body=$(curl -fsS --max-time 5 "$PUBLIC_URL/api/health" || true)
+    echo "$body" | grep -q '"production"' && break
+    [ "$i" = 30 ] && { echo "Health check thất bại sau 5 phút"; exit 1; }
+    echo "Chờ service khởi động... ($i/30)"; sleep 10
+  done
+  echo "Health: $body"
+  curl -fsSI "$PUBLIC_URL" | grep -i strict-transport-security
+
+deploy:vps:
+  stage: deploy
+  <<: *ssh
+  needs: [build]
+  resource_group: production
+  environment:
+    name: production
+    url: $PUBLIC_URL
+  variables:
+    DEPLOY_TAG: $IMAGE_TAG
+  script:
+    - *compose_up
+  rules:
+    - if: $DEPLOY_HOST == null
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $AUTO_DEPLOY == "true"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true # pipeline vẫn "passed" khi chưa bấm deploy
+
+rollback:vps:
+  stage: deploy
+  <<: *ssh
+  needs: []
+  resource_group: production
+  environment:
+    name: production
+    url: $PUBLIC_URL
+  variables:
+    DEPLOY_TAG: $ROLLBACK_TAG
+  script:
+    - '[ -n "$ROLLBACK_TAG" ] || { echo "Chạy lại pipeline với biến ROLLBACK_TAG=<commit-sha-cũ>"; exit 1; }'
+    - *compose_up
+  rules:
+    - if: $DEPLOY_HOST == null
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+
+# Tùy chọn: deploy cùng image lên Kubernetes bằng Helm chart (cần biến KUBECONFIG_FILE)
+deploy:k8s:
+  stage: deploy
+  image:
+    name: alpine/helm:3.16.4
+    entrypoint: [""]
+  needs: [build]
+  resource_group: kubernetes
+  environment:
+    name: kubernetes
+  variables:
+    K8S_NAMESPACE: personal-web
+    K8S_EXTERNAL_URL: http://localhost:30777
+    K8S_NODE_PORT: "30777"
+  script:
+    - export KUBECONFIG="$KUBECONFIG_FILE"
+    - >
+      helm upgrade --install personal-web helm/personal-web
+      --namespace "$K8S_NAMESPACE" --create-namespace
+      --set-string global.externalUrl="$K8S_EXTERNAL_URL"
+      --set frontend.service.nodePort="$K8S_NODE_PORT"
+      --set-string backend.config.contactReceiverEmail="${CONTACT_RECEIVER_EMAIL:-admin@example.com}"
+      --set frontend.image.repository="$CI_REGISTRY_IMAGE/frontend"
+      --set-string frontend.image.tag="$IMAGE_TAG"
+      --set backend.image.repository="$CI_REGISTRY_IMAGE/backend"
+      --set-string backend.image.tag="$IMAGE_TAG"
+      --atomic --wait --timeout 10m
+    - helm -n "$K8S_NAMESPACE" history personal-web --max 5
+  rules:
+    - if: $KUBECONFIG_FILE == null
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+

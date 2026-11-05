@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  APP_ENV: {{ .Values.backend.config.appEnv | quote }}
+  REDIS_URL: redis://redis:6379/0
+  KEYCLOAK_INTERNAL_URL: http://keycloak:8080/auth
+  KEYCLOAK_ISSUER: {{ printf "%s/auth/realms/%s" (required "global.externalUrl must be supplied from .env" .Values.global.externalUrl) .Values.keycloak.realm | quote }}
+  KEYCLOAK_REALM: {{ .Values.keycloak.realm | quote }}
+  CORS_ORIGINS: {{ required "global.externalUrl must be supplied from .env" .Values.global.externalUrl | quote }}
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  CONTACT_RECEIVER_EMAIL: {{ required "backend.config.contactReceiverEmail must be supplied from .env" .Values.backend.config.contactReceiverEmail | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: postgres-password
+            - name: DATABASE_URL
+              value: postgresql+psycopg://postgres:$(POSTGRES_PASSWORD)@postgres:5432/portfolio
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8000 }
+            initialDelaySeconds: 8
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - app.worker.celery_app
+            - worker
+            - --loglevel=INFO
+            - {{ printf "--concurrency=%v" .Values.worker.concurrency | quote }}
+          envFrom:
+            - configMapRef:
+                name: backend-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: postgres-password
+            - name: DATABASE_URL
+              value: postgresql+psycopg://postgres:$(POSTGRES_PASSWORD)@postgres:5432/portfolio
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
