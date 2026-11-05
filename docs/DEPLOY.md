@@ -74,7 +74,7 @@ ssh hai@IP_VPS
 ```
 
 ```bash
-git clone <URL repo GitLab> ~/personal-web-platform && cd ~/personal-web-platform
+git clone https://github.com/huuhai28/web-platform.git ~/personal-web-platform && cd ~/personal-web-platform
 ```
 
 ```bash

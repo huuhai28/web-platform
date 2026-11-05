@@ -1,7 +1,7 @@
 # Personal Web Platform
 
-<!-- Thay <github-user> và <tenmien> sau khi tạo repo / deploy -->
-[![CI/CD](https://github.com/<github-user>/personal-web-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/<github-user>/personal-web-platform/actions/workflows/ci.yml)
+<!-- Thay <tenmien> sau khi deploy lên VPS -->
+[![CI/CD](https://github.com/huuhai28/web-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/huuhai28/web-platform/actions/workflows/ci.yml)
 
 **Live:** https://&lt;tenmien&gt; · English: https://&lt;tenmien&gt;/?lang=en
 

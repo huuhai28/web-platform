@@ -105,7 +105,7 @@ cat <<EOF
 
 Bước tiếp theo:
   1. Mở terminal MỚI:   ssh ${DEPLOY_USER}@$(hostname -I | awk '{print $1}')
-  2. Clone project:     git clone <repo-url> ~/personal-web-platform
+  2. Clone project:     git clone https://github.com/huuhai28/web-platform.git ~/personal-web-platform
   3. Tạo env:           cd ~/personal-web-platform && sh scripts/gen_prod_env.sh > .env.prod && chmod 600 .env.prod && nano .env.prod
   4. Chạy:              docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 EOF
