@@ -152,9 +152,40 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 docker image prune -f
 ```
 
+### Deploy tự động bằng GitHub Actions
+
+Sau khi VPS đã chạy được bằng tay (Bước 1–4):
+
+1. Tạo SSH key riêng cho CI và cài lên VPS (giống bước 1 của phần GitLab bên dưới):
+
+   ```bash
+   ssh-keygen -t ed25519 -f ci_deploy -C "github-actions" -N ""
+   ```
+
+   ```bash
+   ssh-copy-id -i ci_deploy.pub hai@IP_VPS
+   ```
+
+2. GitHub repo → **Settings → Secrets and variables → Actions**:
+
+   | Tab | Name | Value |
+   |---|---|---|
+   | Secrets | `SSH_PRIVATE_KEY` | toàn bộ nội dung file `ci_deploy` |
+   | Secrets | `SSH_KNOWN_HOSTS` | kết quả `ssh-keyscan IP_VPS` |
+   | Secrets | `DEPLOY_HOST` | IP VPS |
+   | Secrets | `DEPLOY_USER` | `hai` |
+   | Secrets | `DEPLOY_PATH` | `/home/hai/personal-web-platform` |
+   | Variables | `PUBLIC_URL` | `https://tenmien.com` |
+   | Variables | `AUTO_DEPLOY` *(tùy chọn)* | `true` |
+
+3. **Deploy:** tab **Actions → CI/CD → Run workflow**, tick `deploy`. Đặt `AUTO_DEPLOY=true` thì
+   mỗi lần push `main` sẽ tự deploy. **Rollback:** Run workflow, điền `rollback_tag` = SHA 7 ký tự cũ
+   (xem file `.deployed-tag` trên VPS hoặc tab Packages).
+4. Image nằm ở tab **Packages** của repo (GHCR). VPS pull bằng token tạm của job nên package để private vẫn được.
+
 ### Deploy tự động bằng GitLab CI/CD
 
-Sau khi VPS đã chạy được bằng tay (Bước 1–4), để pipeline tự deploy thay bạn:
+Nếu dùng GitLab thay vì GitHub:
 
 1. **Tạo SSH key riêng cho CI** (trên máy bạn, không đặt passphrase):
 

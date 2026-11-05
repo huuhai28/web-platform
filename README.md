@@ -1,8 +1,9 @@
 # Personal Web Platform
 
-<!-- Thay <gitlab-user> và <tenmien> sau khi tạo repo / deploy -->
-[![pipeline](https://gitlab.com/<gitlab-user>/personal-web-platform/badges/main/pipeline.svg)](https://gitlab.com/<gitlab-user>/personal-web-platform/-/pipelines)
-**Live:** https://&lt;tenmien&gt; · [English version of the site](https://&lt;tenmien&gt;/?lang=en)
+<!-- Thay <github-user> và <tenmien> sau khi tạo repo / deploy -->
+[![CI/CD](https://github.com/<github-user>/personal-web-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/<github-user>/personal-web-platform/actions/workflows/ci.yml)
+
+**Live:** https://&lt;tenmien&gt; · English: https://&lt;tenmien&gt;/?lang=en
 
 > **EN —** A bilingual (VI/EN) portfolio site that is also a hands-on DevOps project: a static Nginx
 > frontend, FastAPI + Celery backend, Keycloak (OIDC/PKCE), PostgreSQL and Redis — packaged with
@@ -19,7 +20,7 @@ xác thực OIDC, hàng đợi bất đồng bộ đến CI/CD, HTTPS, hardening
 | Mảng | Đã làm |
 |---|---|
 | **Container** | 7 service bằng Docker Compose; image nhỏ (frontend 74 MB); backend chạy user thường; healthcheck, giới hạn RAM, xoay vòng log |
-| **CI/CD** | GitLab pipeline: validate (compose, Helm, kubeconform) → test (pytest, kiểm tra JS/bản dịch) → build 3 image song song → Trivy scan → deploy qua SSH (bấm tay hoặc tự động), có rollback theo commit SHA |
+| **CI/CD** | Cùng một pipeline viết cho **GitHub Actions** và **GitLab CI**: validate (compose, Helm, kubeconform) → test (pytest, kiểm tra JS/bản dịch) → build 3 image song song → Trivy scan → deploy qua SSH (bấm tay hoặc tự động), có rollback theo commit SHA |
 | **Kubernetes** | Helm chart (Deployment, StatefulSet + PVC, Service, ConfigMap, Secret có sẵn) + manifest Kustomize; job `deploy:k8s` dùng `helm upgrade --atomic` |
 | **Networking / TLS** | Caddy tự cấp HTTPS Let's Encrypt, HSTS, HTTP/3; Nginx reverse proxy `/api`, `/auth`, lấy IP thật sau proxy |
 | **Identity** | Keycloak OIDC Authorization Code + **PKCE tự viết bằng JS thuần**, phân quyền theo realm role, chống brute-force |
@@ -39,8 +40,9 @@ Internet ──80/443──► Caddy ──► frontend (nginx) ──┬─ /  
                          └──────────────────────────────────────────────────────┘
                               Keycloak admin: 127.0.0.1:8080 (chỉ qua SSH tunnel)
 
-GitLab ──push──► CI: validate → test → build ─► Container Registry ──pull (tag = commit SHA)──► VPS
-                                       └─► scan (Trivy)            └──helm upgrade──► Kubernetes (tùy chọn)
+GitHub ──push──► Actions: validate → test → build ─► GHCR ──pull (tag = commit SHA)──► VPS
+                                            └─► scan (Trivy)
+(GitLab CI tương đương: GitLab Registry, thêm job helm upgrade ──► Kubernetes)
 ```
 
 | Service | Công nghệ | Vai trò |
@@ -99,18 +101,22 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 
 RAM thực tế ~1.2 GB cho cả stack (Keycloak build sẵn cấu hình: ~450 MB, khởi động ~25 giây) → VPS 2 vCPU / 4 GB.
 
-## CI/CD (GitLab)
+## CI/CD
 
-| Stage | Job | Chạy khi |
+Pipeline chính chạy trên **GitHub Actions** ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+Bản tương đương cho **GitLab CI** ([.gitlab-ci.yml](.gitlab-ci.yml)) dùng GitLab Registry và có thêm job `deploy:k8s` (Helm).
+
+| Giai đoạn | Việc làm | Chạy khi |
 |---|---|---|
-| validate | `validate:compose`, `validate:helm`, `validate:kubeconform` | Mọi MR và nhánh chính |
-| test | `test:backend` (pytest + JUnit report), `test:frontend` | Mọi MR và nhánh chính |
-| build | `build` × 3 (frontend, backend, keycloak) → Container Registry, tag = SHA + `latest` | Nhánh chính, tag |
-| scan | `scan:trivy` × 3 — lỗ hổng HIGH/CRITICAL (cảnh báo) | Nhánh chính, tag |
-| deploy | `deploy:vps` (SSH → pull → `compose up` → health check), `rollback:vps`, `deploy:k8s` (Helm) | Bấm tay; tự động nếu `AUTO_DEPLOY=true` |
+| validate | `docker compose config` (dev + prod), `helm lint` + `template`, kubeconform | Mọi push và PR |
+| test | pytest backend, kiểm tra JS + bản dịch frontend | Mọi push và PR |
+| build | 3 image song song (frontend, backend, keycloak) → GHCR, tag = commit SHA + `latest`, cache build | Push `main` |
+| scan | Trivy — lỗ hổng HIGH/CRITICAL (báo cáo, không chặn) | Sau build |
+| deploy | SSH → chép cấu hình → pull image theo SHA → `compose up --no-build` → health check HTTPS | Bấm *Run workflow*, hoặc tự động nếu `AUTO_DEPLOY=true` |
+| rollback | Như deploy nhưng dùng tag cũ | *Run workflow* với `rollback_tag` |
 
-Biến cần khai báo (Settings → CI/CD → Variables): `SSH_PRIVATE_KEY` (File), `SSH_KNOWN_HOSTS`,
-`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `PUBLIC_URL`. Chi tiết ở đầu file [.gitlab-ci.yml](.gitlab-ci.yml).
+Cấu hình (Settings → Secrets and variables → Actions) — **Secrets:** `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`,
+`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`; **Variables:** `PUBLIC_URL`, `AUTO_DEPLOY`.
 File `.env.prod` (bí mật) chỉ nằm trên VPS, pipeline không bao giờ đọc hay chép nó.
 
 ## Kubernetes
@@ -159,7 +165,8 @@ personal-web-platform/
 ├── docs/DEPLOY.md, TESTING.md
 ├── docker-compose.yml         # dev
 ├── docker-compose.prod.yml    # production
-└── .gitlab-ci.yml
+├── .github/workflows/ci.yml   # GitHub Actions
+└── .gitlab-ci.yml             # GitLab CI (tương đương)
 ```
 
 ## Hướng phát triển

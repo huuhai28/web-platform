@@ -1,0 +1,234 @@
+# =============================================================================
+# GitHub Actions — Personal Web Platform (tương đương .gitlab-ci.yml)
+#
+#   validate ─┐
+#   test ─────┴─► build (3 image → GHCR) ─► scan (Trivy) ─► deploy (SSH → VPS)
+#
+# Deploy chạy khi:
+#   - bấm "Run workflow" (Actions → CI/CD → Run workflow) và chọn deploy = true, hoặc
+#   - push lên main khi biến repo AUTO_DEPLOY = "true"
+# Rollback: Run workflow với rollback_tag = <sha cũ 7 ký tự>.
+#
+# Cấu hình ở Settings → Secrets and variables → Actions:
+#   Secrets  : SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS, DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH
+#   Variables: PUBLIC_URL (vd https://tenmien.com), AUTO_DEPLOY (tùy chọn)
+# =============================================================================
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy lên VPS sau khi build"
+        type: boolean
+        default: false
+      rollback_tag:
+        description: "Rollback: tag (commit SHA 7 ký tự) đã deploy trước đó — bỏ trống nếu không rollback"
+        type: string
+        default: ""
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate (compose, Helm, kubeconform)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker Compose dev + prod
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.prod.yml --env-file .env.prod.example config --quiet
+
+      - name: Helm lint + template
+        run: |
+          ARGS="--set-string global.externalUrl=https://ci.example.com --set frontend.service.nodePort=30777 --set-string backend.config.contactReceiverEmail=ci@example.com"
+          docker run --rm -v "$PWD:/w" -w /w --entrypoint sh alpine/helm:3.16.4 -c "
+            helm lint helm/personal-web $ARGS &&
+            helm template personal-web helm/personal-web --namespace personal-web $ARGS > rendered.yaml"
+          test -s rendered.yaml
+
+      - name: Kubeconform
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w --entrypoint sh ghcr.io/yannh/kubeconform:v0.6.7-alpine -c "
+            /kubeconform -strict -summary -ignore-missing-schemas rendered.yaml &&
+            /kubeconform -strict -summary -ignore-missing-schemas k8s/base/*.yaml"
+
+  # ---------------------------------------------------------------------------
+  test-backend:
+    name: Test backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m pytest -v
+        working-directory: backend
+
+  test-frontend:
+    name: Test frontend (JS + i18n)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/check_frontend.mjs
+
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build ${{ matrix.component }}
+    needs: [validate, test-backend, test-frontend]
+    if: github.event_name != 'pull_request' && inputs.rollback_tag == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - component: frontend
+            context: frontend
+          - component: backend
+            context: backend
+          - component: keycloak
+            context: infra/keycloak
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image name (GHCR yêu cầu chữ thường)
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.component }}" >> "$GITHUB_ENV"
+          echo "TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.TAG }}
+            ${{ github.ref == 'refs/heads/main' && format('{0}:latest', env.IMAGE) || '' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+  # ---------------------------------------------------------------------------
+  scan:
+    name: Trivy ${{ matrix.component }}
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true # báo cáo lỗ hổng, không chặn deploy
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [frontend, backend, keycloak]
+    steps:
+      - name: Scan HIGH/CRITICAL
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.component }}:${GITHUB_SHA::7}"
+          docker run --rm -e TRIVY_USERNAME -e TRIVY_PASSWORD aquasec/trivy:0.58.1 \
+            image --no-progress --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$IMAGE"
+
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to VPS
+    needs: [validate, test-backend, test-frontend, build]
+    # Chạy khi bấm tay (deploy=true hoặc có rollback_tag) hoặc push main với AUTO_DEPLOY=true.
+    # always() để job rollback vẫn chạy được dù job build bị bỏ qua.
+    if: >-
+      always() &&
+      needs.validate.result == 'success' && needs.test-backend.result == 'success' && needs.test-frontend.result == 'success' &&
+      (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.rollback_tag != '')) &&
+      github.ref == 'refs/heads/main' &&
+      (inputs.deploy || inputs.rollback_tag != '' || (github.event_name == 'push' && vars.AUTO_DEPLOY == 'true'))
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL }}
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+      ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          [ -n "$DEPLOY_HOST" ] || { echo "Chưa khai báo secret DEPLOY_HOST"; exit 1; }
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Copy config, pull images, restart
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/id_deploy -o BatchMode=yes $DEPLOY_USER@$DEPLOY_HOST"
+          REGISTRY_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          DEPLOY_TAG="${ROLLBACK_TAG:-${GITHUB_SHA::7}}"
+          COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.prod"
+          echo "Deploy tag: $DEPLOY_TAG"
+
+          # 1. Chép file cấu hình (KHÔNG chép .env.prod — bí mật chỉ nằm trên VPS)
+          tar czf - docker-compose.prod.yml infra scripts | $SSH "mkdir -p '$DEPLOY_PATH' && tar xzf - -C '$DEPLOY_PATH'"
+          # 2. Đăng nhập GHCR bằng GITHUB_TOKEN (chỉ có hiệu lực trong lúc job chạy)
+          echo "$REGISTRY_TOKEN" | $SSH "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          # 3. Pull đúng tag, khởi động lại, dọn image cũ
+          $SSH "cd '$DEPLOY_PATH' && export REGISTRY_IMAGE='$REGISTRY_IMAGE' IMAGE_TAG='$DEPLOY_TAG' &&
+            $COMPOSE pull --quiet frontend backend worker keycloak &&
+            $COMPOSE up -d --no-build --remove-orphans &&
+            echo '$DEPLOY_TAG' > .deployed-tag &&
+            docker logout ghcr.io >/dev/null &&
+            docker image prune -f >/dev/null &&
+            $COMPOSE ps"
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -fsS --max-time 5 "$PUBLIC_URL/api/health" || true)
+            echo "$body" | grep -q '"production"' && { echo "OK: $body"; break; }
+            [ "$i" = 30 ] && { echo "Health check thất bại sau 5 phút"; exit 1; }
+            echo "Chờ service khởi động... ($i/30)"; sleep 10
+          done
+          curl -fsSI "$PUBLIC_URL" | grep -i strict-transport-security
+
+      - name: Clean up key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy
