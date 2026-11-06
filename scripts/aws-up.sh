@@ -24,6 +24,9 @@ step() { printf '\n\033[1;32m############ %s ############\033[0m\n' "$*"; }
 die() { printf '\033[1;31m%s\033[0m\n' "$*"; exit 1; }
 
 step "0/3 Kiểm tra trước khi chạy"
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  die 'Bạn đang chạy bằng bash của WSL. Hãy dùng Git Bash: & "C:\Program Files\Git\bin\bash.exe" scripts/aws-up.sh'
+fi
 docker info >/dev/null 2>&1 || die "Docker Desktop chưa chạy — mở Docker Desktop rồi chạy lại."
 aws sts get-caller-identity >/dev/null 2>&1 || die "AWS chưa đăng nhập — chạy: aws configure"
 [[ -f terraform/terraform.tfvars ]] || die "Thiếu terraform/terraform.tfvars — copy từ terraform/terraform.tfvars.example"
