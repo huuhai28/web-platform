@@ -43,3 +43,4 @@ terraform/.terraform/
 crash.log
 ansible/artifacts/
 ansible/inventory/aws.ini
+.ansible/
