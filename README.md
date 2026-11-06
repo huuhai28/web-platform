@@ -2,7 +2,7 @@
 
 [![CI/CD](https://github.com/huuhai28/web-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/huuhai28/web-platform/actions/workflows/ci.yml)
 
-**Live:** https://web-platform-a68.pages.dev · English: [?lang=en](https://web-platform-a68.pages.dev/?lang=en) · API docs: [/api-docs](https://web-platform-a68.pages.dev/api-docs/)
+**Live:** https://nguyenhuuhai.com · English: [?lang=en](https://nguyenhuuhai.com/?lang=en) · API docs: [/api-docs](https://nguyenhuuhai.com/api-docs/) (mirror: web-platform-a68.pages.dev)
 
 > **EN —** An end-to-end DevOps project built around my bilingual portfolio site: **Terraform** provisions a VPC
 > and EC2 on AWS, **Ansible** configures the nodes and bootstraps a **kubeadm** cluster, **GitHub Actions** tests,
