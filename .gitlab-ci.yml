@@ -102,6 +102,7 @@ test:backend:
     - cd backend
     - pip install -q -r requirements-dev.txt
     - python -m pytest -v --junitxml=report.xml
+    - python ../scripts/export_openapi.py && git diff --exit-code -- ../frontend/site/api-docs/openapi.json
   artifacts:
     when: always
     reports:

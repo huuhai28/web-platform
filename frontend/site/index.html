@@ -15,11 +15,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
-  <link rel="stylesheet" href="/css/styles.css?v=10">
-  <script src="/js/i18n.js?v=10" defer></script>
-  <script src="/js/data.js?v=10" defer></script>
-  <script src="/js/auth.js?v=10" defer></script>
-  <script src="/js/app.js?v=10" defer></script>
+  <link rel="stylesheet" href="/css/styles.css?v=11">
+  <script src="/js/i18n.js?v=11" defer></script>
+  <script src="/js/data.js?v=11" defer></script>
+  <script src="/js/auth.js?v=11" defer></script>
+  <script src="/js/app.js?v=11" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main" data-i18n="a11y.skip">Bỏ qua tới nội dung</a>
@@ -159,7 +159,10 @@
           <p class="kicker" data-i18n="arch.kicker">Kiến trúc của chính trang này</p>
           <h2 data-i18n-html="arch.title">Bảy service, <em>một luồng hoàn chỉnh.</em></h2>
           <p data-i18n="arch.text"></p>
-          <a class="link-arrow arch-link" href="https://github.com/huuhai28/web-platform" target="_blank" rel="noopener"><span data-i18n="arch.repo">Xem mã nguồn &amp; pipeline</span> <span aria-hidden="true">↗</span></a>
+          <div class="arch-links">
+            <a class="link-arrow arch-link" href="https://github.com/huuhai28/web-platform" target="_blank" rel="noopener"><span data-i18n="arch.repo">Xem mã nguồn &amp; pipeline</span> <span aria-hidden="true">↗</span></a>
+            <a class="link-arrow arch-link" href="/api-docs/"><span data-i18n="arch.apiDocs">Tài liệu API (Swagger)</span> <span aria-hidden="true">→</span></a>
+          </div>
         </div>
         <ol class="arch-flow" id="arch-flow"></ol>
       </div>
@@ -208,6 +211,7 @@
 
   <footer class="site-footer shell">
     <span>© <span id="year">2026</span> Nguyễn Hữu Hải</span>
+    <a href="/api-docs/" data-i18n="footer.api">Tài liệu API</a>
     <a href="#top" data-i18n="footer.top">Lên đầu trang ↑</a>
   </footer>
 </body>

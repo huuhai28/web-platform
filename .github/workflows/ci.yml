@@ -78,6 +78,11 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - run: python -m pytest -v
         working-directory: backend
+      - name: Tài liệu API (openapi.json) khớp với code
+        working-directory: backend
+        run: |
+          python ../scripts/export_openapi.py
+          git diff --exit-code -- ../frontend/site/api-docs/openapi.json || { echo "Hãy chạy: cd backend && python ../scripts/export_openapi.py rồi commit"; exit 1; }
 
   test-frontend:
     name: Test frontend (JS, i18n, Pages Function)

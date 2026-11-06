@@ -378,7 +378,8 @@ em { font-style: normal; color: var(--accent); }
 }
 
 /* Link tới repo trong section kiến trúc (nền tối) */
-.arch-link { margin-top: 20px; color: #fff; }
+.arch-links { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-top: 20px; }
+.arch-link { color: #fff; }
 .arch-link:hover { color: #8fa8ff; }
 
 /* Ô bẫy bot trong form liên hệ — đẩy ra ngoài màn hình thay vì display:none (bot hay bỏ qua ô display:none) */

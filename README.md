@@ -1,9 +1,8 @@
 # Personal Web Platform
 
-<!-- Thay <tenmien> sau khi deploy lên VPS -->
 [![CI/CD](https://github.com/huuhai28/web-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/huuhai28/web-platform/actions/workflows/ci.yml)
 
-**Live:** https://&lt;tenmien&gt; · English: https://&lt;tenmien&gt;/?lang=en
+**Live:** https://web-platform-a68.pages.dev · English: [?lang=en](https://web-platform-a68.pages.dev/?lang=en) · API docs: [/api-docs](https://web-platform-a68.pages.dev/api-docs/)
 
 > **EN —** A bilingual (VI/EN) portfolio site that is also a hands-on DevOps project: a static Nginx
 > frontend, FastAPI + Celery backend, Keycloak (OIDC/PKCE), PostgreSQL and Redis — packaged with
@@ -26,6 +25,9 @@ xác thực OIDC, hàng đợi bất đồng bộ đến CI/CD, HTTPS, hardening
 | **Identity** | Keycloak OIDC Authorization Code + **PKCE tự viết bằng JS thuần**, phân quyền theo realm role, chống brute-force |
 | **Security** | CSP chặt (không inline script/style), chặn trang admin Keycloak ra Internet (vào qua SSH tunnel), user DB riêng từng service, rate limit form, không có mật khẩu mặc định ở production, UFW + fail2ban |
 | **Async** | Form liên hệ → PostgreSQL → Redis → Celery worker → SMTP |
+| **Observability** | Log JSON một dòng có `request_id` xuyên suốt nginx → FastAPI → Celery; `/api/health/live` + `/api/health/ready` (kiểm tra DB, Redis); `/metrics` cho Prometheus. Bộ ELK + Grafana + n8n/AI đọc các tín hiệu này nằm ở repo [ai-log-analyzer](https://github.com/huuhai28/ai-log-analyzer) |
+| **API docs** | Swagger UI công khai tại `/api-docs`, sinh từ chính code FastAPI; CI báo lỗi nếu tài liệu lệch code |
+| **Serverless** | Form liên hệ trên Cloudflare Pages chạy bằng Pages Function → Resend (email), có test riêng |
 | **Vận hành** | Script cài VPS 1 lệnh, backup DB tự động giữ 14 bản, tài liệu deploy + xử lý sự cố |
 | **Frontend** | HTML/CSS/JS thuần, không build step; song ngữ Việt/Anh; responsive; hiệu ứng cuộn |
 
@@ -69,7 +71,9 @@ docker compose up --build -d
 | http://localhost:3000 | Trang web (thêm `?lang=en` cho tiếng Anh) |
 | http://localhost:3000/#admin | Đăng nhập quản trị — user `hai` / `ChangeMe123!` (chỉ dùng local) |
 | http://localhost:8025 | Mailpit — xem email từ form liên hệ |
-| http://localhost:8000/docs | Swagger API (tắt ở production) |
+| http://localhost:3000/api-docs/ | Swagger UI (bản tĩnh, giống trang công khai) |
+| http://localhost:8000/docs | Swagger do FastAPI tự sinh (tắt ở production) |
+| http://localhost:8000/metrics | Metrics Prometheus (chỉ trong mạng nội bộ, nginx không proxy) |
 
 Chỉ sửa giao diện, không cần Docker: `node scripts/dev_static_server.mjs` → http://localhost:5500.
 
@@ -152,7 +156,7 @@ personal-web-platform/
 │   │   ├── js/data.js         #   nội dung: profile, kỹ năng, dự án (vi/en)
 │   │   ├── js/auth.js         #   OIDC + PKCE không thư viện
 │   │   └── js/app.js          #   render, form, khu vực admin
-│   ├── nginx/default.conf     # reverse proxy, header bảo mật, rate limit
+│   ├── nginx/default.conf.template  # reverse proxy, header bảo mật, rate limit, log JSON
 │   └── Dockerfile
 ├── backend/                   # FastAPI + Celery, tests/ (pytest)
 ├── infra/
@@ -171,7 +175,7 @@ personal-web-platform/
 
 ## Hướng phát triển
 
-- Monitoring: Uptime Kuma (trang status công khai) hoặc Prometheus + Grafana + cảnh báo Telegram.
+- Trang status công khai (Uptime Kuma); giám sát + phân tích log bằng AI đã tách sang repo ai-log-analyzer.
 - Đưa backup ra ngoài VPS (S3 / Google Drive) và diễn tập khôi phục định kỳ.
 - Blog kỹ thuật viết bằng Markdown; trang CV tải xuống.
 - Kubernetes: Ingress + cert-manager, NetworkPolicy, HPA, GitOps với Argo CD.

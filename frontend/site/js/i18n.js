@@ -60,6 +60,7 @@
       "arch.title": "Bảy service, <em>một luồng hoàn chỉnh.</em>",
       "arch.text": "Nginx phục vụ HTML/CSS tĩnh và làm reverse proxy. Keycloak cấp token OIDC, FastAPI đọc/ghi PostgreSQL, còn Celery lấy việc từ Redis để gửi email nền. Toàn bộ chạy bằng Docker Compose hoặc Kubernetes (Helm), build và kiểm thử tự động bằng GitHub Actions.",
       "arch.repo": "Xem mã nguồn & pipeline",
+      "arch.apiDocs": "Tài liệu API (Swagger)",
 
       "account.kicker": "Khu vực quản trị",
       "account.hello": "Xin chào,",
@@ -92,6 +93,7 @@
       "form.mailto": "✓ Đã mở ứng dụng email với nội dung bạn vừa nhập — bấm Gửi để hoàn tất.",
 
       "footer.top": "Lên đầu trang ↑",
+      "footer.api": "Tài liệu API",
     },
 
     en: {
@@ -143,6 +145,7 @@
       "arch.title": "Seven services, <em>one complete flow.</em>",
       "arch.text": "Nginx serves static HTML/CSS and acts as the reverse proxy. Keycloak issues OIDC tokens, FastAPI reads and writes PostgreSQL, and Celery picks jobs from Redis to send email in the background. Everything runs on Docker Compose or Kubernetes (Helm), built and tested automatically with GitHub Actions.",
       "arch.repo": "View source & pipeline",
+      "arch.apiDocs": "API docs (Swagger)",
 
       "account.kicker": "Admin area",
       "account.hello": "Hello,",
@@ -175,6 +178,7 @@
       "form.mailto": "✓ Your email app is open with your message — press Send to finish.",
 
       "footer.top": "Back to top ↑",
+      "footer.api": "API docs",
     },
   };
 

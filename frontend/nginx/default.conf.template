@@ -1,4 +1,21 @@
-# File này nằm trong context `http` của nginx (được include từ conf.d).
+# File này là TEMPLATE: lúc container khởi động, image nginx chạy envsubst để thay ${API_UPSTREAM}
+# (mặc định backend:8000, đặt trong Dockerfile) rồi ghi ra /etc/nginx/conf.d/default.conf.
+# Biến nginx như $host không bị đụng tới vì chúng không phải biến môi trường.
+# File nằm trong context `http` của nginx.
+
+# ---- Request ID: giữ ID từ phía trước (Caddy/Kong) hoặc tự sinh, gắn vào log và gửi xuống backend ----
+map $http_x_request_id $req_id {
+    default $http_x_request_id;
+    ""      $request_id;
+}
+
+# Access log dạng JSON một dòng → Filebeat/Logstash đưa thẳng vào Elasticsearch
+log_format json_access escape=json '{"@timestamp":"$time_iso8601","service":"nginx","logger":"nginx.access",'
+    '"request_id":"$req_id","client.ip":"$remote_addr","http.method":"$request_method","url.path":"$uri",'
+    '"http.status_code":$status,"duration_s":$request_time,"bytes":$body_bytes_sent,'
+    '"upstream.duration":"$upstream_response_time","user_agent":"$http_user_agent",'
+    '"message":"$request_method $uri $status"}';
+access_log /var/log/nginx/access.log json_access;
 
 # ---- Chạy sau reverse proxy (Caddy ở production) ----
 # Tin IP từ các mạng private (mạng Docker), lấy IP thật của khách từ X-Forwarded-For.
@@ -37,19 +54,21 @@ server {
     # ---- API: FastAPI backend ----
     location = /api/contact {
         limit_req zone=contact burst=3 nodelay;
-        proxy_pass http://backend:8000/api/contact;
+        proxy_pass http://${API_UPSTREAM}/api/contact;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header X-Request-ID $req_id;
     }
 
     location /api/ {
-        proxy_pass http://backend:8000/api/;
+        proxy_pass http://${API_UPSTREAM}/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header X-Request-ID $req_id;
     }
 
     # ---- Keycloak (giữ header bảo mật riêng của Keycloak, không thêm CSP ở đây) ----
@@ -63,6 +82,16 @@ server {
         proxy_set_header X-Forwarded-Proto $forwarded_proto;
         proxy_buffer_size 128k;
         proxy_buffers 4 256k;
+    }
+
+    # ---- Tài liệu API (Swagger UI): giống trang chính nhưng cho phép style inline ----
+    location ^~ /api-docs/ {
+        try_files $uri $uri/ =404;
+        expires 1h;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
     }
 
     # ---- CSS/JS/ảnh: cache 7 ngày (đổi ?v= trong index.html khi sửa file) ----

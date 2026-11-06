@@ -1,11 +1,22 @@
+import logging
 import smtplib
 import socket
 from email.message import EmailMessage
 from urllib.parse import urlparse
 
 from celery import Celery
+from celery.signals import setup_logging
 
 from .config import settings
+from .observability import configure_logging
+
+log = logging.getLogger("portfolio.worker")
+
+
+@setup_logging.connect
+def _json_logging(**_kwargs) -> None:
+    """Celery dùng chung định dạng log JSON với API để Logstash/Kibana đọc thống nhất."""
+    configure_logging("portfolio-worker")
 
 
 celery_app = Celery("portfolio-worker", broker=settings.redis_url, backend=settings.redis_url)
@@ -43,5 +54,6 @@ def send_contact_notification(name: str, email: str, subject: str, message: str)
         if settings.smtp_username:
             smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(mail)
+    log.info("contact notification sent", extra={"mail.to": settings.contact_receiver_email})
     return "sent"
 

@@ -1,0 +1,15 @@
+/* Thanh trên cùng theo phong cách trang chủ */
+body { margin: 0; background: #f6f7f9; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.docs-bar {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px max(16px, calc((100% - 1460px) / 2 + 20px)); background: #0b1220; color: #e2e8f0;
+}
+.docs-brand { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.04em; color: #fff; text-decoration: none; }
+.docs-brand span { color: #6b8bff; }
+.docs-title { font-weight: 600; color: #a3b0c4; }
+.docs-bar nav { margin-left: auto; display: flex; gap: 18px; flex-wrap: wrap; }
+.docs-bar nav a { color: #e2e8f0; text-decoration: none; font-size: .92rem; }
+.docs-bar nav a:hover { color: #8fa8ff; }
+#swagger-ui { max-width: 1460px; margin: 0 auto; }
+.swagger-ui .topbar { display: none; }
+@media (max-width: 560px) { .docs-bar nav { margin-left: 0; width: 100%; } }

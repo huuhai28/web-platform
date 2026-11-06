@@ -1,5 +1,5 @@
 # Cấu hình nginx (reverse proxy /api, /auth, header bảo mật, rate limit form) nằm sẵn trong image
-# frontend (frontend/nginx/default.conf), nên không cần ConfigMap ghi đè. Tên Service backend/keycloak
+# frontend (frontend/nginx/default.conf.template), nên không cần ConfigMap ghi đè. Tên Service backend/keycloak
 # trong chart trùng với tên trong docker compose, nên cùng một image chạy được ở cả hai nơi.
 apiVersion: v1
 kind: Service
