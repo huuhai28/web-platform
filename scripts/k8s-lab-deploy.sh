@@ -103,7 +103,7 @@ sleep 5
 echo "--- Truy cập trang chủ"
 curl -s -o /dev/null -w "GET / -> %{http_code}\n" "$URL/"
 echo "--- Request đi qua Kong (header Via / X-Request-ID / RateLimit)"
-curl -sI -H "X-Request-ID: lab-check-001" "$URL/api/profile" | grep -iE "^HTTP|^via|x-request-id|ratelimit-limit|x-kong-upstream" || true
+curl -s -D - -o /dev/null -H "X-Request-ID: lab-check-001" "$URL/api/profile" | grep -iE "^HTTP|^via|x-request-id|ratelimit-limit|x-kong-upstream" || true
 echo "--- Health readiness"
 curl -s "$URL/api/health/ready"; echo
 echo "--- Rate limit form liên hệ (7 lần, mong đợi 201 x5 rồi 429)"

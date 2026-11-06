@@ -26,8 +26,8 @@ Terraform (VPC, EC2) → Ansible (containerd, kubeadm init/join) → GitHub Acti
 
 ### Chạy end-to-end trên AWS
 
-Chỉ cần Docker và `aws configure` (Terraform, Ansible chạy trong container). Chi phí ~0,1–0,15 USD/giờ
-(2 × t3.medium, không EKS/NAT Gateway).
+Chỉ cần Docker và `aws configure` (Terraform, Ansible chạy trong container). Chi phí ~0,2 USD/giờ
+(control plane `c7i-flex.large` + worker `m7i-flex.large`, loại máy free-tier-eligible; không EKS/NAT Gateway).
 
 ```bash
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # điền my_ip_cidr, đường dẫn SSH public key
@@ -39,6 +39,48 @@ Deploy: đặt secret `KUBECONFIG_B64` (base64 của kubeconfig), `GRAFANA_ADMIN
 workflow **Deploy to Kubernetes** — hoặc từ máy:
 `KUBECONFIG=ansible/artifacts/kubeconfig NODE_IP=<ip> INSTALL_MONITORING=1 bash scripts/k8s-lab-deploy.sh`.
 Web: `http://personal-web.<ip>.nip.io:30080` · Grafana: `http://<ip>:30300`. Xong thì **`bash terraform/tf.sh destroy`**.
+
+### Kết quả chạy thật (AWS ap-southeast-2, 06/11/2026)
+
+`terraform apply` (16 tài nguyên) → `ansible/run.sh` (cluster kubeadm 2 node) → `scripts/k8s-lab-deploy.sh`
+(Kong Ingress + kube-prometheus-stack + chart) — tổng khoảng 25 phút, sau đó `terraform destroy`.
+
+![Website chạy trên Kubernetes (kubeadm, AWS) qua Kong Ingress](assets/screenshots/aws-k8s-website.jpg)
+
+```text
+$ kubectl get nodes
+NAME             STATUS   ROLES           VERSION    INTERNAL-IP
+ip-10-10-1-223   Ready    control-plane   v1.33.13   10.10.1.223
+ip-10-10-1-226   Ready    <none>          v1.33.13   10.10.1.226
+
+$ kubectl -n personal-web get ingress,hpa,kongplugins
+ingress/personal-web           kong   personal-web.15.134.128.157.nip.io   80
+ingress/personal-web-api       kong   personal-web.15.134.128.157.nip.io   80
+ingress/personal-web-contact   kong   personal-web.15.134.128.157.nip.io   80
+hpa/backend   Deployment/backend   cpu: 3%/70%   2   5   2
+kongplugin/pw-api-rate-limit       rate-limiting
+kongplugin/pw-contact-rate-limit   rate-limiting
+kongplugin/pw-prometheus           prometheus
+kongplugin/pw-request-id           correlation-id
+kongplugin/pw-request-size         request-size-limiting
+
+$ helm list -A
+kong           kong           deployed   ingress-0.24.0
+monitoring     monitoring     deployed   kube-prometheus-stack-92.21.2
+personal-web   personal-web   deployed   personal-web-0.3.0
+
+$ curl -s -D - -o /dev/null -H "X-Request-ID: from-vietnam-01" http://personal-web.<ip>.nip.io:30080/api/profile
+RateLimit-Remaining: 117
+x-request-id: from-vietnam-01
+Via: 1.1 kong/3.9.4
+
+Form liên hệ gửi 7 lần liên tiếp → 201 201 201 201 201 429 429   (KongPlugin rate limit)
+Prometheus: target backend 2/2 up · PrometheusRule: BackendDown, HighErrorRate, HighLatencyP95
+```
+
+Sự cố gặp khi chạy thật và cách xử lý: tài khoản bị SCP chặn EC2 ở hầu hết region → dò region được phép
+(ap-southeast-2); Free Plan từ chối `t3.medium` → đổi sang loại free-tier-eligible; Ansible chép kubeconfig trước khi
+tạo thư mục → sửa thứ tự, chạy lại playbook (kubeadm init được bỏ qua nhờ idempotent).
 
 ---
 
