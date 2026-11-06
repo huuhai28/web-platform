@@ -16,13 +16,29 @@ Terraform (VPC, EC2) → Ansible (containerd, kubeadm init/join) → GitHub Acti
   → Kubernetes: Kong Ingress + KongPlugin, HPA, probes → Prometheus/Grafana (ServiceMonitor, alert, dashboard)
 ```
 
-| Bước | Thư mục | Hướng dẫn |
-|---|---|---|
-| Hạ tầng AWS | [terraform/](terraform/) | [docs/AWS.md](docs/AWS.md) |
-| Cấu hình node + dựng cluster kubeadm | [ansible/](ansible/) | [docs/AWS.md](docs/AWS.md#2-dựng-cluster--ansible--kubeadm) |
-| Deploy bằng Helm (Kong Ingress, HPA, monitoring) | [helm/](helm/), [.github/workflows/deploy-k8s.yml](.github/workflows/deploy-k8s.yml) | [docs/KUBERNETES.md](docs/KUBERNETES.md) |
-| CI: test, build, scan | [.github/workflows/ci.yml](.github/workflows/ci.yml) | [mục CI/CD](#cicd) |
-| Bản VPS đơn giản (Docker Compose + HTTPS) | [docker-compose.prod.yml](docker-compose.prod.yml) | [docs/DEPLOY.md](docs/DEPLOY.md) |
+| Bước | Thư mục |
+|---|---|
+| Hạ tầng AWS | [terraform/](terraform/) |
+| Cấu hình node + dựng cluster kubeadm | [ansible/](ansible/) |
+| Deploy bằng Helm (Kong Ingress, HPA, monitoring) | [helm/](helm/), [.github/workflows/deploy-k8s.yml](.github/workflows/deploy-k8s.yml) |
+| CI: test, build, scan | [.github/workflows/ci.yml](.github/workflows/ci.yml) |
+| Bản VPS đơn giản (Docker Compose + HTTPS) | [docker-compose.prod.yml](docker-compose.prod.yml) |
+
+### Chạy end-to-end trên AWS
+
+Chỉ cần Docker và `aws configure` (Terraform, Ansible chạy trong container). Chi phí ~0,1–0,15 USD/giờ
+(2 × t3.medium, không EKS/NAT Gateway).
+
+```bash
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # điền my_ip_cidr, đường dẫn SSH public key
+bash terraform/tf.sh init && bash terraform/tf.sh apply             # VPC, Security Group, 2 EC2, inventory Ansible
+SSH_KEY=~/.ssh/<private-key> bash ansible/run.sh                    # kubeadm cluster → ansible/artifacts/kubeconfig
+```
+
+Deploy: đặt secret `KUBECONFIG_B64` (base64 của kubeconfig), `GRAFANA_ADMIN_PASSWORD` và biến `K8S_NODE_IP`, rồi chạy
+workflow **Deploy to Kubernetes** — hoặc từ máy:
+`KUBECONFIG=ansible/artifacts/kubeconfig NODE_IP=<ip> INSTALL_MONITORING=1 bash scripts/k8s-lab-deploy.sh`.
+Web: `http://personal-web.<ip>.nip.io:30080` · Grafana: `http://<ip>:30300`. Xong thì **`bash terraform/tf.sh destroy`**.
 
 ---
 
@@ -107,11 +123,11 @@ python scripts/full_function_test.py --client-id portfolio-frontend --user demo 
 
 Đã kiểm chứng: 14/14 bước E2E trên bản dev; 12/12 bước E2E trên bản production chạy local với HTTPS
 (PKCE, refresh token, thu hồi phiên khi dùng lại authorization code, rate limit 429, trang admin bị chặn);
-deploy giả lập pull image theo tag từ registry. Kịch bản load test 1000 user: [docs/TESTING.md](docs/TESTING.md).
+deploy giả lập pull image theo tag từ registry. Load test 1000 user: `scripts/load_test.py`.
 
 ## Production
 
-Toàn bộ quy trình — thuê VPS, trỏ DNS, cài đặt bảo mật, HTTPS, backup — trong **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+VPS Ubuntu: `scripts/vps_bootstrap.sh` (user deploy, khóa SSH, UFW, fail2ban, swap, Docker), rồi:
 
 ```bash
 sh scripts/gen_prod_env.sh > .env.prod && chmod 600 .env.prod   # sinh mật khẩu ngẫu nhiên, sửa DOMAIN/SMTP
@@ -152,8 +168,7 @@ Kong Manager: http://localhost:8002 · cấu hình gateway: [infra/kong/kong.yam
 NODE_IP=192.168.0.111 bash scripts/k8s-lab-deploy.sh   # cài Kong Ingress Controller + chart, tự kiểm tra
 ```
 
-Hướng dẫn đầy đủ (chuẩn bị cluster, GHCR, HPA, xử lý sự cố): **[docs/KUBERNETES.md](docs/KUBERNETES.md)** ·
-chart: [helm/personal-web/README.md](helm/personal-web/README.md) · manifest thuần (Kustomize): `kubectl apply -k k8s/base`.
+Chart: [helm/personal-web/README.md](helm/personal-web/README.md) · manifest thuần (Kustomize): `kubectl apply -k k8s/base`.
 
 ## Ghi chú kỹ thuật — những vấn đề đã gặp
 
@@ -191,7 +206,6 @@ personal-web-platform/
 ├── helm/monitoring/           # values cho kube-prometheus-stack
 ├── k8s/base/                  # Kustomize manifests
 ├── scripts/                   # cài VPS, deploy K8s lab, sinh env, backup, xuất OpenAPI, test E2E/load test
-├── docs/DEPLOY.md, KUBERNETES.md, TESTING.md
 ├── docker-compose.yml         # dev
 ├── docker-compose.gateway.yml # thêm Kong API Gateway vào bản dev
 ├── docker-compose.prod.yml    # production

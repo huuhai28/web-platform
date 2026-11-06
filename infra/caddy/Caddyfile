@@ -1,7 +1,7 @@
 # Caddy: cổng duy nhất mở ra Internet (80/443).
 # - Tự xin và tự gia hạn chứng chỉ HTTPS từ Let's Encrypt cho {$DOMAIN}.
 # - Tự chuyển http → https.
-# - Chặn trang quản trị Keycloak ra Internet (vào qua SSH tunnel, xem docs/DEPLOY.md).
+# - Chặn trang quản trị Keycloak ra Internet (vào qua SSH tunnel: ssh -L 8080:127.0.0.1:8080 user@vps).
 {
 	email {$ACME_EMAIL}
 }

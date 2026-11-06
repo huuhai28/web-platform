@@ -44,3 +44,6 @@ crash.log
 ansible/artifacts/
 ansible/inventory/aws.ini
 .ansible/
+
+# Tài liệu nội bộ, chỉ giữ trên máy
+docs/

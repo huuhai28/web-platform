@@ -1,6 +1,6 @@
 # Helm chart: personal-web
 
-> Deploy lên cluster lab có Kong Ingress: xem **[docs/KUBERNETES.md](../../docs/KUBERNETES.md)** và `values-lab.yaml`.
+> Deploy lên cluster có Kong Ingress + monitoring: `scripts/k8s-lab-deploy.sh` với `values-lab.yaml`.
 
 Deploy toàn bộ Personal Web Platform lên Kubernetes: frontend (nginx), backend + Celery worker,
 Keycloak, PostgreSQL (StatefulSet + PVC), Redis và Mailpit. Mật khẩu **không** nằm trong `values.yaml`
@@ -56,6 +56,6 @@ helm -n personal-web rollback personal-web <REVISION> --wait
 ## Ghi chú
 
 - Chart này là bản **lab**: Keycloak chạy `start-dev`, email đi vào Mailpit. Bản production trên VPS
-  dùng `docker-compose.prod.yml` (Keycloak `start --optimized`, HTTPS bằng Caddy) — xem `docs/DEPLOY.md`.
+  dùng `docker-compose.prod.yml` (Keycloak `start --optimized`, HTTPS bằng Caddy).
 - Đổi Secret không tự đổi mật khẩu user DB đã tạo trong PostgreSQL/Keycloak; xoay mật khẩu là một thao tác riêng.
 - Không trộn `kubectl apply -k k8s/base` với Helm trên cùng namespace — chọn một trong hai.
