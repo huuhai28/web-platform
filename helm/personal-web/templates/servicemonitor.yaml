@@ -1,0 +1,22 @@
+{{- /* Chỉ tạo khi cluster đã có CRD của Prometheus Operator, tránh lỗi "no matches for kind ServiceMonitor" */}}
+{{- if and .Values.monitoring.serviceMonitor.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+# Prometheus Operator (kube-prometheus-stack) tự tìm Service backend và scrape /metrics mỗi 15 giây
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backend
+  labels:
+    app: backend
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+{{- end }}

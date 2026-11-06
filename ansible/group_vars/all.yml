@@ -1,0 +1,10 @@
+# Phiên bản cố định để dựng lại cluster giống hệt nhau
+k8s_minor_version: "v1.33" # repo pkgs.k8s.io theo minor version
+pod_network_cidr: "10.244.0.0/16" # mặc định của Flannel, không trùng VPC 10.10.0.0/16 hay LAN 192.168.x
+flannel_version: "v0.26.7"
+metrics_server_version: "v0.7.2"
+local_path_provisioner_version: "v0.0.30"
+helm_version: "v3.16.4"
+
+kubeconfig_admin: /etc/kubernetes/admin.conf
+artifacts_dir: "{{ playbook_dir }}/artifacts"

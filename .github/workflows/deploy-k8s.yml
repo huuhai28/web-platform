@@ -1,0 +1,85 @@
+# =============================================================================
+# Deploy lên cluster Kubernetes (kubeadm trên EC2 do Terraform tạo, hoặc cluster lab) bằng Helm.
+#
+#   - Bấm tay: Actions → "Deploy to Kubernetes" → Run workflow
+#   - Tự động sau khi workflow "CI/CD" build xong trên main, nếu biến repo K8S_AUTO_DEPLOY = "true"
+#
+# Cấu hình (Settings → Secrets and variables → Actions):
+#   Secret   KUBECONFIG_B64          base64 của ansible/artifacts/kubeconfig (do Ansible tải về)
+#   Secret   GRAFANA_ADMIN_PASSWORD  (khi cài monitoring) mật khẩu admin Grafana
+#   Variable K8S_NODE_IP             IP public của một node (vd output control_plane_public_ip của Terraform)
+#   Variable K8S_AUTO_DEPLOY         "true" để tự deploy sau mỗi lần CI xanh
+# Cluster phải cho runner GitHub gọi tới API 6443 (Terraform: k8s_api_public = true).
+# =============================================================================
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag image trên GHCR (commit SHA 7 ký tự). Bỏ trống = commit hiện tại của nhánh"
+        type: string
+        default: ""
+      install_monitoring:
+        description: "Cài/cập nhật kube-prometheus-stack (Prometheus + Grafana)"
+        type: boolean
+        default: true
+  workflow_run:
+    workflows: ["CI/CD"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-kubernetes
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Helm deploy
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && vars.K8S_AUTO_DEPLOY == 'true')
+    runs-on: ubuntu-latest
+    environment:
+      name: kubernetes
+      url: http://personal-web.${{ vars.K8S_NODE_IP }}.nip.io:30080
+    env:
+      NODE_IP: ${{ vars.K8S_NODE_IP }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Tag image cần deploy
+        env:
+          INPUT_TAG: ${{ inputs.image_tag }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          [ -n "$NODE_IP" ] || { echo "Chưa đặt biến repo K8S_NODE_IP"; exit 1; }
+          TAG="${INPUT_TAG:-${RUN_SHA::7}}"
+          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Deploy image tag: $TAG"
+
+      - name: Kubeconfig
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          [ -n "$KUBECONFIG_B64" ] || { echo "Chưa đặt secret KUBECONFIG_B64"; exit 1; }
+          echo "$KUBECONFIG_B64" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+          kubectl version
+          kubectl get nodes -o wide
+
+      - name: Deploy Kong Ingress + monitoring + app (Helm)
+        env:
+          INSTALL_MONITORING: ${{ (github.event_name == 'workflow_run' || inputs.install_monitoring) && '1' || '0' }}
+          GRAFANA_PASSWORD_OVERRIDE: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: bash scripts/k8s-lab-deploy.sh
+
+      - name: Dọn kubeconfig
+        if: always()
+        run: rm -f "$RUNNER_TEMP/kubeconfig"

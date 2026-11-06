@@ -64,14 +64,37 @@ jobs:
             helm lint helm/personal-web $ARGS &&
             helm lint helm/personal-web -f helm/personal-web/values-lab.yaml &&
             helm template personal-web helm/personal-web --namespace personal-web $ARGS > rendered.yaml &&
-            helm template personal-web helm/personal-web --namespace personal-web -f helm/personal-web/values-lab.yaml > rendered-lab.yaml"
+            helm template personal-web helm/personal-web --namespace personal-web -f helm/personal-web/values-lab.yaml --api-versions monitoring.coreos.com/v1 > rendered-lab.yaml"
           test -s rendered.yaml && test -s rendered-lab.yaml
 
-      - name: Kubeconform (kèm schema CRD KongPlugin)
+      - name: Kubeconform (kèm schema CRD KongPlugin, ServiceMonitor, PrometheusRule)
         run: |
           docker run --rm -v "$PWD:/w" -w /w --entrypoint sh ghcr.io/yannh/kubeconform:v0.6.7-alpine -c '
-            /kubeconform -strict -summary -schema-location default               -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"               rendered.yaml rendered-lab.yaml &&
+            /kubeconform -strict -summary -schema-location default -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" rendered.yaml rendered-lab.yaml &&
             /kubeconform -strict -summary -ignore-missing-schemas k8s/base/*.yaml'
+
+  # ---------------------------------------------------------------------------
+  iac:
+    name: Infrastructure as Code (Terraform, Ansible)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Terraform fmt + validate
+        run: |
+          docker run --rm -v "$PWD/terraform:/tf" -w /tf hashicorp/terraform:1.9.8 fmt -check -recursive
+          docker run --rm -v "$PWD/terraform:/tf" -w /tf hashicorp/terraform:1.9.8 init -backend=false -input=false
+          docker run --rm -v "$PWD/terraform:/tf" -w /tf hashicorp/terraform:1.9.8 validate
+
+      - name: Ansible syntax-check + ansible-lint
+        run: |
+          docker build -q -t personal-web-ansible ansible
+          docker run --rm -v "$PWD:/work" -e ANSIBLE_CONFIG=/work/ansible/ansible.cfg personal-web-ansible sh -c "
+            ansible-playbook -i inventory/lab.ini.example site.yml --syntax-check &&
+            ansible-lint --offline site.yml roles"
+
+      - name: Shell scripts (shellcheck)
+        run: docker run --rm -v "$PWD:/r:ro" koalaman/shellcheck:v0.10.0 -S warning /r/ansible/run.sh /r/terraform/tf.sh
 
   # ---------------------------------------------------------------------------
   test-backend:

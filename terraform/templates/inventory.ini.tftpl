@@ -1,0 +1,15 @@
+# Sinh tự động bởi Terraform — đừng sửa tay (chạy lại terraform apply để cập nhật)
+[control_plane]
+${control_plane.tags.Name} ansible_host=${control_plane.public_ip} private_ip=${control_plane.private_ip}
+
+[workers]
+%{ for w in workers ~}
+${w.tags.Name} ansible_host=${w.public_ip} private_ip=${w.private_ip}
+%{ endfor ~}
+
+[k8s:children]
+control_plane
+workers
+
+[k8s:vars]
+ansible_user=ubuntu

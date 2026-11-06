@@ -33,3 +33,13 @@ Thumbs.db
 
 # Bản React cũ, chỉ giữ ở máy local để tham khảo
 archive/
+
+# ---- Terraform / Ansible ----
+terraform/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+ansible/artifacts/
+ansible/inventory/aws.ini

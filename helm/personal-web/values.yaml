@@ -103,3 +103,15 @@ autoscaling:
     minReplicas: 2
     maxReplicas: 4
     targetCPUUtilizationPercentage: 70
+
+# -----------------------------------------------------------------------------
+# Monitoring với kube-prometheus-stack (cài riêng — xem docs/KUBERNETES.md)
+# -----------------------------------------------------------------------------
+monitoring:
+  serviceMonitor:
+    enabled: false
+    labels: {} # thêm label nếu Prometheus chỉ chọn ServiceMonitor có label riêng
+  grafanaDashboard:
+    enabled: false
+  alerts:
+    enabled: false # PrometheusRule: BackendDown, HighErrorRate, HighLatencyP95

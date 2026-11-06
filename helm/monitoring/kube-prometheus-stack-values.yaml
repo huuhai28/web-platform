@@ -1,0 +1,40 @@
+# Giá trị cho chart prometheus-community/kube-prometheus-stack trên cluster kubeadm nhỏ (2 node t3.medium).
+#   helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace #     -f helm/monitoring/kube-prometheus-stack-values.yaml --set grafana.adminPassword=...
+# (scripts/k8s-lab-deploy.sh với INSTALL_MONITORING=1 làm sẵn việc này)
+
+grafana:
+  service:
+    type: NodePort
+    nodePort: 30300 # Security Group chỉ mở cổng này cho IP của bạn
+  defaultDashboardsTimezone: browser
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL # nạp dashboard của app từ namespace personal-web
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
+
+prometheus:
+  prometheusSpec:
+    # Nhận MỌI ServiceMonitor / PrometheusRule trong cluster, không cần gắn label release=monitoring
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    retention: 2d
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+      limits: { memory: 1Gi }
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 128Mi }
+
+# kubeadm cho các thành phần này listen trên 127.0.0.1 → Prometheus không scrape được và báo động giả.
+kubeEtcd: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }

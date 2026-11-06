@@ -4,13 +4,25 @@
 
 **Live:** https://web-platform-a68.pages.dev · English: [?lang=en](https://web-platform-a68.pages.dev/?lang=en) · API docs: [/api-docs](https://web-platform-a68.pages.dev/api-docs/)
 
-> **EN —** A bilingual (VI/EN) portfolio site that is also a hands-on DevOps project: a static Nginx
-> frontend, FastAPI + Celery backend, Keycloak (OIDC/PKCE), PostgreSQL and Redis — packaged with
-> Docker, deployed to a VPS behind Caddy (automatic HTTPS) by a GitLab CI/CD pipeline, with a Helm
-> chart for Kubernetes.
+> **EN —** An end-to-end DevOps project built around my bilingual portfolio site: **Terraform** provisions a VPC
+> and EC2 on AWS, **Ansible** configures the nodes and bootstraps a **kubeadm** cluster, **GitHub Actions** tests,
+> builds and pushes images, then deploys with **Helm** behind **Kong Ingress**, monitored by **Prometheus/Grafana**.
+> The app itself is FastAPI + Celery + Keycloak (OIDC/PKCE) + PostgreSQL + Redis with a static Nginx frontend.
 
-Website giới thiệu bản thân, đồng thời là project tổng hợp kỹ năng DevOps: từ container, reverse proxy,
-xác thực OIDC, hàng đợi bất đồng bộ đến CI/CD, HTTPS, hardening VPS và Kubernetes/Helm.
+Website giới thiệu bản thân, đồng thời là project DevOps end-to-end:
+
+```text
+Terraform (VPC, EC2) → Ansible (containerd, kubeadm init/join) → GitHub Actions (test → build → GHCR → helm upgrade)
+  → Kubernetes: Kong Ingress + KongPlugin, HPA, probes → Prometheus/Grafana (ServiceMonitor, alert, dashboard)
+```
+
+| Bước | Thư mục | Hướng dẫn |
+|---|---|---|
+| Hạ tầng AWS | [terraform/](terraform/) | [docs/AWS.md](docs/AWS.md) |
+| Cấu hình node + dựng cluster kubeadm | [ansible/](ansible/) | [docs/AWS.md](docs/AWS.md#2-dựng-cluster--ansible--kubeadm) |
+| Deploy bằng Helm (Kong Ingress, HPA, monitoring) | [helm/](helm/), [.github/workflows/deploy-k8s.yml](.github/workflows/deploy-k8s.yml) | [docs/KUBERNETES.md](docs/KUBERNETES.md) |
+| CI: test, build, scan | [.github/workflows/ci.yml](.github/workflows/ci.yml) | [mục CI/CD](#cicd) |
+| Bản VPS đơn giản (Docker Compose + HTTPS) | [docker-compose.prod.yml](docker-compose.prod.yml) | [docs/DEPLOY.md](docs/DEPLOY.md) |
 
 ---
 
@@ -18,6 +30,8 @@ xác thực OIDC, hàng đợi bất đồng bộ đến CI/CD, HTTPS, hardening
 
 | Mảng | Đã làm |
 |---|---|
+| **Infrastructure as Code** | **Terraform** (AWS VPC, subnet, IGW, Security Group tối thiểu, EC2 Ubuntu 24.04, IMDSv2, ổ mã hóa, Budget alert; tự sinh inventory cho Ansible) · **Ansible** dựng cluster **kubeadm** idempotent (containerd systemd cgroup, Flannel, metrics-server, local-path, Helm), qua `ansible-lint` profile production. Cả hai chạy trong Docker, CI kiểm tra `terraform validate` + `ansible-lint` |
+| **Monitoring** | kube-prometheus-stack; chart tự tạo **ServiceMonitor** cho `/metrics`, **PrometheusRule** (backend down, lỗi 5xx, p95), dashboard Grafana nạp qua ConfigMap |
 | **Container** | 7 service bằng Docker Compose; image nhỏ (frontend 74 MB); backend chạy user thường; healthcheck, giới hạn RAM, xoay vòng log |
 | **CI/CD** | Cùng một pipeline viết cho **GitHub Actions** và **GitLab CI**: validate (compose, Helm, kubeconform) → test (pytest, kiểm tra JS/bản dịch) → build 3 image song song → Trivy scan → deploy qua SSH (bấm tay hoặc tự động), có rollback theo commit SHA |
 | **Kubernetes / Helm** | Helm chart: Deployment, StatefulSet + PVC, **Ingress qua Kong Ingress Controller**, **KongPlugin** (rate limit, request ID, giới hạn body, metrics), **HPA**, readiness/liveness probe, `values-lab.yaml` cho cluster lab; script deploy 1 lệnh tự kiểm tra kết quả; `helm upgrade --atomic` tự rollback khi lỗi |
@@ -171,14 +185,18 @@ personal-web-platform/
 │   ├── keycloak/              # Dockerfile (optimized) + realm dev/prod
 │   ├── kong/kong.yaml         # cấu hình Kong khai báo (decK)
 │   └── postgres/              # script tạo DB/user
-├── helm/personal-web/         # Helm chart (+ values-lab.yaml: Kong Ingress, HPA)
+├── terraform/                 # AWS: VPC, EC2, Security Group, Budget (tf.sh chạy trong Docker)
+├── ansible/                   # containerd + kubeadm init/join + add-on (run.sh chạy trong Docker)
+├── helm/personal-web/         # Helm chart (+ values-lab.yaml: Kong Ingress, HPA, ServiceMonitor)
+├── helm/monitoring/           # values cho kube-prometheus-stack
 ├── k8s/base/                  # Kustomize manifests
 ├── scripts/                   # cài VPS, deploy K8s lab, sinh env, backup, xuất OpenAPI, test E2E/load test
 ├── docs/DEPLOY.md, KUBERNETES.md, TESTING.md
 ├── docker-compose.yml         # dev
 ├── docker-compose.gateway.yml # thêm Kong API Gateway vào bản dev
 ├── docker-compose.prod.yml    # production
-├── .github/workflows/ci.yml   # GitHub Actions
+├── .github/workflows/ci.yml   # GitHub Actions: validate, IaC, test, build, scan
+├── .github/workflows/deploy-k8s.yml # GitHub Actions: Helm deploy lên cluster
 └── .gitlab-ci.yml             # GitLab CI (tương đương)
 ```
 

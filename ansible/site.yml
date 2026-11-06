@@ -1,0 +1,27 @@
+# =============================================================================
+# Dựng cluster Kubernetes bằng kubeadm trên các node Ubuntu 24.04 (EC2 do Terraform tạo, hoặc VM lab).
+#   1. common        mọi node: tắt swap, kernel module, sysctl, containerd (systemd cgroup), kubelet/kubeadm/kubectl
+#   2. control_plane kubeadm init, kubeconfig, Flannel CNI, lệnh join, tải kubeconfig về máy
+#   3. worker        kubeadm join
+#   4. addons        chờ node Ready, metrics-server (cho HPA), local-path-provisioner (StorageClass), Helm
+# Chạy lại nhiều lần an toàn (idempotent): bước nào đã xong sẽ bỏ qua.
+# =============================================================================
+- name: Chuẩn bị mọi node
+  hosts: k8s
+  become: true
+  roles: [common]
+
+- name: Khởi tạo control plane
+  hosts: control_plane
+  become: true
+  roles: [control_plane]
+
+- name: Join worker vào cluster
+  hosts: workers
+  become: true
+  roles: [worker]
+
+- name: Cài add-on cho cluster
+  hosts: control_plane
+  become: true
+  roles: [addons]

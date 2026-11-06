@@ -1,0 +1,13 @@
+{{- if .Values.monitoring.grafanaDashboard.enabled }}
+# Sidecar của Grafana (kube-prometheus-stack) tự nạp mọi ConfigMap có label grafana_dashboard=1
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: personal-web-dashboard
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  personal-web.json: |-
+{{ .Files.Get "dashboards/personal-web.json" | indent 4 }}
+{{- end }}

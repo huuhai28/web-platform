@@ -1,0 +1,104 @@
+- name: Cài gói nền
+  ansible.builtin.apt:
+    name: [apt-transport-https, ca-certificates, curl, gpg, containerd]
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Tắt swap ngay (kubelet yêu cầu)
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Tắt swap vĩnh viễn trong fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+- name: Nạp kernel module khi khởi động
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+    mode: "0644"
+
+- name: Nạp kernel module ngay
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: [overlay, br_netfilter]
+
+- name: Sysctl cho mạng Kubernetes
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: /etc/sysctl.d/k8s.conf
+    reload: true
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.ipv4.ip_forward
+
+- name: Tạo cấu hình containerd mặc định (lần đầu)
+  ansible.builtin.shell: |
+    set -o pipefail
+    mkdir -p /etc/containerd
+    containerd config default > /etc/containerd/config.toml
+  args:
+    creates: /etc/containerd/config.toml
+    executable: /bin/bash
+  notify: Restart containerd
+
+- name: Cho containerd dùng systemd cgroup (khớp với kubelet)
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: Restart containerd
+
+- name: Cho containerd dùng đúng pause image kubeadm mong đợi
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image = ".*"'
+    replace: 'sandbox_image = "registry.k8s.io/pause:3.10"'
+  notify: Restart containerd
+
+- name: Áp dụng cấu hình containerd trước khi chạy kubeadm
+  ansible.builtin.meta: flush_handlers
+
+- name: Thư mục keyring APT
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Khóa GPG của repo Kubernetes
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/{{ k8s_minor_version }}/deb/Release.key \
+      | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    executable: /bin/bash
+
+- name: Repo APT Kubernetes
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ k8s_minor_version }}/deb/ /"
+    filename: kubernetes
+    state: present
+
+- name: Cài kubelet, kubeadm, kubectl
+  ansible.builtin.apt:
+    name: [kubelet, kubeadm, kubectl]
+    update_cache: true
+
+- name: Giữ phiên bản (không tự nâng cấp khi apt upgrade)
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: [kubelet, kubeadm, kubectl]
+
+- name: Bật kubelet
+  ansible.builtin.systemd_service:
+    name: kubelet
+    enabled: true

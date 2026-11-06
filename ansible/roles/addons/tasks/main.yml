@@ -1,0 +1,80 @@
+- name: Chờ mọi node Ready (CNI đã chạy)
+  ansible.builtin.command: kubectl wait --for=condition=Ready nodes --all --timeout=300s
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  changed_when: false
+
+- name: Cài metrics-server (HPA đọc CPU/RAM)
+  ansible.builtin.command: >-
+    kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/{{ metrics_server_version }}/components.yaml
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  register: metrics_server
+  changed_when: "'created' in metrics_server.stdout or 'configured' in metrics_server.stdout"
+
+- name: Đọc tham số hiện tại của metrics-server
+  ansible.builtin.command: >-
+    kubectl -n kube-system get deployment metrics-server
+    -o jsonpath={.spec.template.spec.containers[0].args}
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  register: ms_args
+  changed_when: false
+
+- name: Cho metrics-server chấp nhận chứng chỉ tự ký của kubelet (cluster kubeadm) — chỉ patch một lần
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - -n
+      - kube-system
+      - patch
+      - deployment
+      - metrics-server
+      - --type=json
+      - -p=[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  when: "'kubelet-insecure-tls' not in ms_args.stdout"
+  changed_when: true
+
+- name: Cài local-path-provisioner (StorageClass cho PVC PostgreSQL)
+  ansible.builtin.command: >-
+    kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/{{ local_path_provisioner_version }}/deploy/local-path-storage.yaml
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  register: local_path
+  changed_when: "'created' in local_path.stdout or 'configured' in local_path.stdout"
+
+- name: Đặt local-path làm StorageClass mặc định
+  ansible.builtin.command: >-
+    kubectl patch storageclass local-path
+    -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  register: sc_patch
+  changed_when: "'no change' not in sc_patch.stdout"
+
+- name: Kiểm tra Helm
+  ansible.builtin.stat:
+    path: /usr/local/bin/helm
+  register: helm_bin
+
+- name: Cài Helm {{ helm_version }}
+  ansible.builtin.unarchive:
+    src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    extra_opts: [--strip-components=1, linux-amd64/helm]
+    mode: "0755"
+  when: not helm_bin.stat.exists
+
+- name: Trạng thái cluster
+  ansible.builtin.command: kubectl get nodes -o wide
+  environment:
+    KUBECONFIG: "{{ kubeconfig_admin }}"
+  register: nodes
+  changed_when: false
+
+- name: In danh sách node
+  ansible.builtin.debug:
+    var: nodes.stdout_lines

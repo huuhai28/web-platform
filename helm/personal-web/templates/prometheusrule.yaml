@@ -1,0 +1,33 @@
+{{- if and .Values.monitoring.alerts.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+# Cảnh báo cho app — Prometheus Operator tự nạp PrometheusRule
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: personal-web
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  groups:
+    - name: personal-web
+      rules:
+        - alert: PersonalWebBackendDown
+          expr: sum(up{job="backend", namespace="{{ .Release.Namespace }}"}) == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: Không còn pod backend nào trả lời /metrics
+        - alert: PersonalWebHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}", status=~"5.."}[5m]))
+              / clamp_min(sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}"}[5m])), 1e-9) > 0.05
+          for: 2m
+          labels: { severity: warning }
+          annotations:
+            summary: Tỉ lệ lỗi 5xx của API trên 5%
+        - alert: PersonalWebHighLatencyP95
+          expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace="{{ .Release.Namespace }}"}[5m]))) > 1
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: p95 latency của API trên 1 giây
+{{- end }}

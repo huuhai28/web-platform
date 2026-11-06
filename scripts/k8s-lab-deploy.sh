@@ -11,6 +11,7 @@
 #   IMAGE_TAG=latest          tag image trên GHCR (nên dùng commit SHA 7 ký tự)
 #   GHCR_USER / GHCR_TOKEN    nếu package GHCR để private (token cần quyền read:packages)
 #   SKIP_KONG=1               bỏ qua bước cài Kong (đã cài rồi)
+#   INSTALL_MONITORING=1      cài thêm kube-prometheus-stack (Prometheus + Grafana + Alertmanager)
 #
 # Cuối script in ra phần "KẾT QUẢ" — copy toàn bộ gửi lại để kiểm tra.
 # =============================================================================
@@ -49,11 +50,25 @@ if [[ "${SKIP_KONG:-0}" != "1" ]]; then
     --set gateway.proxy.type=NodePort \
     --set gateway.proxy.http.nodePort=30080 \
     --set gateway.proxy.tls.nodePort=30443 \
-    --set gateway.proxy.externalTrafficPolicy=Local \
     --wait --timeout 10m
-  # externalTrafficPolicy=Local: giữ IP thật của người dùng để rate limit đúng từng IP
+  # externalTrafficPolicy để mặc định (Cluster): vào được qua IP của MỌI node, kể cả control plane
+  # (control plane kubeadm có taint nên pod Kong nằm ở worker). Đổi lại Kong thấy IP node thay vì IP
+  # người dùng nên rate limit tính chung; muốn theo từng IP thì dùng Local + truy cập qua IP worker.
 fi
 kubectl -n kong get pods,svc
+
+GRAFANA_PASSWORD=""
+if [[ "${INSTALL_MONITORING:-0}" == "1" ]]; then
+  log "1b. Cài kube-prometheus-stack (Prometheus Operator, Grafana NodePort 30300, Alertmanager)"
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+  helm repo update prometheus-community >/dev/null
+  GRAFANA_PASSWORD="${GRAFANA_PASSWORD_OVERRIDE:-$(openssl rand -hex 12)}"
+  helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace \
+    -f "$ROOT/helm/monitoring/kube-prometheus-stack-values.yaml" \
+    --set-string grafana.adminPassword="$GRAFANA_PASSWORD" \
+    --wait --timeout 15m
+  kubectl -n monitoring get pods
+fi
 
 log "2. Namespace + Secret (chỉ tạo nếu chưa có — không ghi đè mật khẩu cũ)"
 kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
@@ -106,5 +121,14 @@ EOF
 kubectl -n "$NS" get pods,svc,ingress,hpa -o wide
 kubectl -n "$NS" get kongplugins
 helm -n "$NS" history "$RELEASE" --max 3
+if [[ -n "$GRAFANA_PASSWORD" ]]; then
+  kubectl -n "$NS" get servicemonitor,prometheusrule 2>/dev/null || true
+  if [[ -n "${CI:-}" ]]; then
+    # Log của GitHub Actions trên repo public ai cũng đọc được → không in mật khẩu
+    echo "Grafana: http://${NODE_IP}:30300  (admin / mật khẩu trong secret GRAFANA_ADMIN_PASSWORD)"
+  else
+    echo "Grafana: http://${NODE_IP}:30300  (admin / ${GRAFANA_PASSWORD} — chỉ hiện một lần, KHÔNG gửi mật khẩu này đi đâu)"
+  fi
+fi
 echo "URL: $URL"
 echo "=========================================================================================="

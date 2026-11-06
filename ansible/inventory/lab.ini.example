@@ -1,0 +1,15 @@
+# Ví dụ dùng VM lab có sẵn thay cho EC2 (copy thành lab.ini rồi sửa).
+# private_ip = IP mà các node dùng nói chuyện với nhau; ansible_host = IP bạn SSH vào.
+[control_plane]
+master ansible_host=192.168.0.111 private_ip=192.168.0.111
+
+[workers]
+worker1 ansible_host=192.168.0.112 private_ip=192.168.0.112
+worker2 ansible_host=192.168.0.113 private_ip=192.168.0.113
+
+[k8s:children]
+control_plane
+workers
+
+[k8s:vars]
+ansible_user=ubuntu
