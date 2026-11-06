@@ -91,7 +91,6 @@
       "form.tooMany": "Bạn gửi hơi nhanh, vui lòng thử lại sau 1 phút.",
       "form.mailto": "✓ Đã mở ứng dụng email với nội dung bạn vừa nhập — bấm Gửi để hoàn tất.",
 
-      "footer.built": "Viết bằng HTML, CSS & JavaScript thuần · mã nguồn trên GitHub",
       "footer.top": "Lên đầu trang ↑",
     },
 
@@ -175,7 +174,6 @@
       "form.tooMany": "You're sending too fast — please try again in a minute.",
       "form.mailto": "✓ Your email app is open with your message — press Send to finish.",
 
-      "footer.built": "Built with plain HTML, CSS & JavaScript · source on GitHub",
       "footer.top": "Back to top ↑",
     },
   };

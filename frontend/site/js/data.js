@@ -15,7 +15,7 @@ window.PORTFOLIO = {
       en: "I build platforms that are repeatable to deploy, observable and easy to operate — from local containers to Kubernetes and cloud infrastructure with Terraform.",
     },
     location: { vi: "Việt Nam · Remote", en: "Vietnam · Remote" },
-    email: "hai@example.com",
+    email: "nguyenhai281103@gmail.com",
     availability: { vi: "Sẵn sàng cho dự án mới", en: "Open to new projects" },
   },
 
