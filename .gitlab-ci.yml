@@ -113,6 +113,7 @@ test:frontend:
   needs: []
   script:
     - node scripts/check_frontend.mjs
+    - node --test "tests/**/*.test.mjs"
 
 # -----------------------------------------------------------------------------
 # BUILD — 3 image chạy song song, push lên GitLab Container Registry
