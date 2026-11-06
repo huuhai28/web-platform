@@ -55,7 +55,7 @@ jobs:
         run: docker run --rm -v "$PWD/infra/kong:/d:ro" kong/deck:v1.43.1 file validate /d/kong.yaml
 
       - name: Shell scripts (shellcheck)
-        run: docker run --rm -v "$PWD/scripts:/s:ro" koalaman/shellcheck:v0.10.0 -S warning /s/k8s-lab-deploy.sh /s/vps_bootstrap.sh /s/backup_db.sh /s/gen_prod_env.sh
+        run: docker run --rm -v "$PWD/scripts:/s:ro" koalaman/shellcheck:v0.10.0 -S warning /s/k8s-lab-deploy.sh /s/aws-up.sh /s/aws-down.sh /s/vps_bootstrap.sh /s/backup_db.sh /s/gen_prod_env.sh
 
       - name: Helm lint + template
         run: |

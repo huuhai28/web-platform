@@ -30,7 +30,14 @@ Chỉ cần Docker và `aws configure` (Terraform, Ansible chạy trong containe
 (control plane `c7i-flex.large` + worker `m7i-flex.large`, loại máy free-tier-eligible; không EKS/NAT Gateway).
 
 ```bash
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # điền my_ip_cidr, đường dẫn SSH public key
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars   # một lần: điền my_ip_cidr, SSH public key, region
+bash scripts/aws-up.sh     # BẬT: Terraform → Ansible (kubeadm) → Helm (Kong, Prometheus/Grafana, app) ~25 phút
+bash scripts/aws-down.sh   # TẮT: terraform destroy, xóa sạch để không tốn tiền ~3 phút
+```
+
+Từng bước riêng lẻ:
+
+```bash
 bash terraform/tf.sh init && bash terraform/tf.sh apply             # VPC, Security Group, 2 EC2, inventory Ansible
 SSH_KEY=~/.ssh/<private-key> bash ansible/run.sh                    # kubeadm cluster → ansible/artifacts/kubeconfig
 ```
