@@ -376,3 +376,7 @@ em { font-style: normal; color: var(--accent); }
   /* Khi admin đăng nhập trên điện thoại: nhường chỗ cho nút Đăng xuất (Liên hệ vẫn có trong menu) */
   .auth-slot:not(:empty) ~ .btn-dark { display: none; }
 }
+
+/* Link tới repo trong section kiến trúc (nền tối) */
+.arch-link { margin-top: 20px; color: #fff; }
+.arch-link:hover { color: #8fa8ff; }

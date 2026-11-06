@@ -28,7 +28,6 @@ window.PORTFOLIO = {
     { category: "Backend", name: "Python", short: "Py", level: 76, note: { vi: "FastAPI, tự động hóa", en: "FastAPI, automation" } },
     { category: "Systems", name: "Linux", short: "Lx", level: 80, note: { vi: "Networking, vận hành", en: "Networking, operations" } },
     { category: "Systems", name: "Nginx", short: "Nx", level: 74, note: { vi: "Reverse proxy, TLS", en: "Reverse proxy, TLS" } },
-    { category: "Security", name: "Keycloak", short: "KC", level: 65, note: { vi: "OIDC, phân quyền", en: "OIDC, RBAC" } },
   ],
 
   projects: [
@@ -58,10 +57,10 @@ window.PORTFOLIO = {
       id: 3,
       title: "Personal Web Platform",
       description: {
-        vi: "Chính trang này: Nginx + FastAPI + Keycloak + PostgreSQL + Redis/Celery, deploy bằng GitLab CI/CD lên VPS.",
-        en: "This very site: Nginx + FastAPI + Keycloak + PostgreSQL + Redis/Celery, deployed to a VPS with GitLab CI/CD.",
+        vi: "Chính trang này: Nginx + FastAPI + Keycloak + PostgreSQL + Redis/Celery, đóng gói Docker, Helm chart cho Kubernetes, CI/CD bằng GitHub Actions.",
+        en: "This very site: Nginx + FastAPI + Keycloak + PostgreSQL + Redis/Celery, packaged with Docker, a Helm chart for Kubernetes, CI/CD with GitHub Actions.",
       },
-      stack: "Docker Compose, GitLab CI, FastAPI, Keycloak",
+      stack: "Docker Compose, Helm, GitHub Actions, FastAPI, Keycloak",
       outcome: { vi: "Full-stack chạy thật trên Internet", en: "Full stack running live on the Internet" },
       featured: false,
     },

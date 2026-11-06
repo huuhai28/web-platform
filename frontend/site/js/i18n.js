@@ -56,9 +56,10 @@
       "projects.outcome": "Kết quả",
       "projects.featured": "Nổi bật",
 
-      "arch.kicker": "Kiến trúc của chính trang này",
+      "arch.kicker": "Kiến trúc của project này",
       "arch.title": "Bảy service, <em>một luồng hoàn chỉnh.</em>",
-      "arch.text": "Nginx phục vụ HTML/CSS tĩnh và làm reverse proxy. Keycloak cấp token OIDC, FastAPI đọc/ghi PostgreSQL, còn Celery lấy việc từ Redis để gửi email nền.",
+      "arch.text": "Nginx phục vụ HTML/CSS tĩnh và làm reverse proxy. Keycloak cấp token OIDC, FastAPI đọc/ghi PostgreSQL, còn Celery lấy việc từ Redis để gửi email nền. Toàn bộ chạy bằng Docker Compose hoặc Kubernetes (Helm), build và kiểm thử tự động bằng GitHub Actions.",
+      "arch.repo": "Xem mã nguồn & pipeline",
 
       "account.kicker": "Khu vực quản trị",
       "account.hello": "Xin chào,",
@@ -74,7 +75,7 @@
 
       "contact.kicker": "04 — Liên hệ",
       "contact.title": "Có một hệ thống cần <em>làm cho gọn hơn?</em>",
-      "contact.text": "Gửi cho tôi bối cảnh, mục tiêu và vấn đề đang gặp. Tin nhắn được lưu vào PostgreSQL và worker sẽ gửi thông báo qua hàng đợi.",
+      "contact.text": "Gửi cho tôi bối cảnh, mục tiêu và vấn đề đang gặp — tôi sẽ phản hồi qua email.",
       "form.name": "Họ tên",
       "form.namePh": "Tên của bạn",
       "form.email": "Email",
@@ -88,8 +89,9 @@
       "form.invalid": "Vui lòng kiểm tra lại các trường được đánh dấu đỏ.",
       "form.error": "Không gửi được:",
       "form.tooMany": "Bạn gửi hơi nhanh, vui lòng thử lại sau 1 phút.",
+      "form.mailto": "✓ Đã mở ứng dụng email với nội dung bạn vừa nhập — bấm Gửi để hoàn tất.",
 
-      "footer.built": "Viết bằng HTML, CSS & JavaScript thuần · chạy trên Docker",
+      "footer.built": "Viết bằng HTML, CSS & JavaScript thuần · mã nguồn trên GitHub",
       "footer.top": "Lên đầu trang ↑",
     },
 
@@ -138,9 +140,10 @@
       "projects.outcome": "Outcome",
       "projects.featured": "Featured",
 
-      "arch.kicker": "How this site is built",
+      "arch.kicker": "Project architecture",
       "arch.title": "Seven services, <em>one complete flow.</em>",
-      "arch.text": "Nginx serves static HTML/CSS and acts as the reverse proxy. Keycloak issues OIDC tokens, FastAPI reads and writes PostgreSQL, and Celery picks jobs from Redis to send email in the background.",
+      "arch.text": "Nginx serves static HTML/CSS and acts as the reverse proxy. Keycloak issues OIDC tokens, FastAPI reads and writes PostgreSQL, and Celery picks jobs from Redis to send email in the background. Everything runs on Docker Compose or Kubernetes (Helm), built and tested automatically with GitHub Actions.",
+      "arch.repo": "View source & pipeline",
 
       "account.kicker": "Admin area",
       "account.hello": "Hello,",
@@ -156,7 +159,7 @@
 
       "contact.kicker": "04 — Contact",
       "contact.title": "Got a system that needs <em>to be simpler?</em>",
-      "contact.text": "Tell me about the context, your goals and the problem you're facing. Messages are stored in PostgreSQL and a background worker sends the notification through a queue.",
+      "contact.text": "Tell me about the context, your goals and the problem you're facing — I'll get back to you by email.",
       "form.name": "Name",
       "form.namePh": "Your name",
       "form.email": "Email",
@@ -170,8 +173,9 @@
       "form.invalid": "Please check the fields highlighted in red.",
       "form.error": "Could not send:",
       "form.tooMany": "You're sending too fast — please try again in a minute.",
+      "form.mailto": "✓ Your email app is open with your message — press Send to finish.",
 
-      "footer.built": "Built with plain HTML, CSS & JavaScript · running on Docker",
+      "footer.built": "Built with plain HTML, CSS & JavaScript · source on GitHub",
       "footer.top": "Back to top ↑",
     },
   };

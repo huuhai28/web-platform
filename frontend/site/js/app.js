@@ -252,12 +252,23 @@
       showStatus("form.sent", "ok");
     } catch (err) {
       if (err.status === 429) showStatus("form.tooMany", "err");
+      // Không có backend (host tĩnh) hoặc backend đang sập → vẫn cho khách liên hệ qua email
+      else if (!err.status || [404, 405, 501, 502, 503, 504].includes(err.status)) openMailDraft(body);
       else showStatus("form.error", "err", err.message);
     } finally {
       submit.disabled = false;
       submit.textContent = t("form.submit");
     }
   });
+
+  // Khi trang chạy trên host tĩnh (Cloudflare Pages) không có backend: mở ứng dụng email của khách
+  // với nội dung đã điền sẵn, khách chỉ cần bấm Gửi.
+  function openMailDraft({ name, email, subject, message }) {
+    const to = data.profile.email;
+    const text = `${message}\n\n— ${name} <${email}>`;
+    location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    showStatus("form.mailto", "ok");
+  }
 
   form.addEventListener("input", (e) => {
     if (e.target.classList.contains("invalid") && e.target.checkValidity()) e.target.classList.remove("invalid");
