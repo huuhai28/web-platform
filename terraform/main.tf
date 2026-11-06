@@ -150,7 +150,7 @@ resource "aws_instance" "control_plane" {
 resource "aws_instance" "worker" {
   count                  = var.worker_count
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
+  instance_type          = var.worker_instance_type
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.k8s.id]
   key_name               = aws_key_pair.admin.key_name

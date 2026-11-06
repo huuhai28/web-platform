@@ -27,9 +27,15 @@ variable "k8s_api_public" {
 }
 
 variable "instance_type" {
-  description = "kubeadm cần tối thiểu 2 vCPU / 2 GB RAM cho control plane"
+  description = "Loại máy control plane (kubeadm cần tối thiểu 2 vCPU / 2 GB). Tài khoản Free Plan chỉ được dùng loại free-tier-eligible: c7i-flex.large (4 GB), m7i-flex.large (8 GB)..."
   type        = string
-  default     = "t3.medium"
+  default     = "c7i-flex.large"
+}
+
+variable "worker_instance_type" {
+  description = "Loại máy worker — app (Keycloak ~1 GB) + Prometheus/Grafana chạy ở đây nên cần nhiều RAM hơn"
+  type        = string
+  default     = "m7i-flex.large"
 }
 
 variable "worker_count" {

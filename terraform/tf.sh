@@ -19,7 +19,10 @@ for v in AWS_PROFILE AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESS
   [[ -n "${!v:-}" ]] && ENV_ARGS+=(-e "$v")
 done
 
-MSYS_NO_PATHCONV=1 docker run --rm -it \
+TTY_ARGS=()
+[[ -t 0 && -t 1 ]] && TTY_ARGS=(-it) # chỉ bật chế độ tương tác khi chạy trong terminal thật
+
+MSYS_NO_PATHCONV=1 docker run --rm ${TTY_ARGS[@]+"${TTY_ARGS[@]}"} \
   -v "$(win_path "$ROOT"):/work" \
   -v "$(win_path "$HOME/.aws"):/root/.aws:ro" \
   -v "$(win_path "$HOME/.ssh"):/root/.ssh:ro" \

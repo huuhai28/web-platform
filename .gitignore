@@ -47,3 +47,4 @@ ansible/inventory/aws.ini
 
 # Tài liệu nội bộ, chỉ giữ trên máy
 docs/
+terraform/tfplan

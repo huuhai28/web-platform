@@ -13,6 +13,14 @@
   register: kubeadm_init
   changed_when: true
 
+- name: Thư mục .kube của user ubuntu
+  ansible.builtin.file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+
 - name: Kubeconfig cho user ubuntu (để chạy kubectl không cần sudo)
   ansible.builtin.copy:
     src: "{{ kubeconfig_admin }}"
@@ -21,15 +29,6 @@
     owner: ubuntu
     group: ubuntu
     mode: "0600"
-  become: true
-
-- name: Thư mục .kube thuộc về ubuntu
-  ansible.builtin.file:
-    path: /home/ubuntu/.kube
-    state: directory
-    owner: ubuntu
-    group: ubuntu
-    mode: "0700"
 
 - name: Cài Flannel CNI
   ansible.builtin.command: >-
