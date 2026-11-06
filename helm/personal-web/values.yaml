@@ -4,6 +4,9 @@ global:
 
 existingSecret: platform-secrets
 
+# Secret để kéo image private (vd. GHCR): [{ name: ghcr-pull }]. Để trống nếu image public.
+imagePullSecrets: []
+
 frontend:
   replicas: 2
   image:
@@ -11,7 +14,8 @@ frontend:
     tag: local
     pullPolicy: IfNotPresent
   service:
-    # Bắt buộc truyền từ PERSONAL_WEB_NODE_PORT trong file .env.
+    # NodePort: mở thẳng cổng trên node (không cần Ingress). ClusterIP: khi dùng Ingress (Kong) phía trước.
+    type: NodePort
     nodePort: 0
   resources:
     requests: { cpu: 50m, memory: 64Mi }
@@ -66,3 +70,36 @@ mailpit:
   resources:
     requests: { cpu: 25m, memory: 32Mi }
     limits: { cpu: 200m, memory: 128Mi }
+
+# -----------------------------------------------------------------------------
+# Ingress qua Kong Ingress Controller (cài riêng: helm install kong kong/ingress -n kong)
+# Kong xử lý rate limit, request ID, giới hạn body, metrics — khai báo bằng KongPlugin bên dưới.
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: kong
+  # Ví dụ lab không cần DNS: personal-web.192.168.0.111.nip.io (nip.io tự trỏ về IP trong tên)
+  host: ""
+  annotations: {}
+
+kongPlugins:
+  rateLimit:
+    apiPerMinute: 120 # mỗi IP, toàn bộ /api
+    contactPerMinute: 5 # mỗi IP, POST /api/contact
+  requestSizeLimitMb: 1
+  prometheus: true # Kong xuất metrics theo service/route (cổng status của Kong)
+
+# -----------------------------------------------------------------------------
+# HorizontalPodAutoscaler (cần metrics-server trong cluster)
+# -----------------------------------------------------------------------------
+autoscaling:
+  backend:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  frontend:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70

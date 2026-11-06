@@ -1,0 +1,60 @@
+{{- if .Values.ingress.enabled }}
+# Plugin Kong khai báo bằng CRD KongPlugin (Kong Ingress Controller đọc và áp vào gateway).
+# Gắn vào Ingress qua annotation konghq.com/plugins trong ingress.yaml.
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: pw-request-id
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+plugin: correlation-id
+config:
+  header_name: X-Request-ID
+  generator: uuid
+  echo_downstream: true
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: pw-api-rate-limit
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+plugin: rate-limiting
+config:
+  minute: {{ .Values.kongPlugins.rateLimit.apiPerMinute }}
+  policy: local
+  limit_by: ip
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: pw-contact-rate-limit
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+plugin: rate-limiting
+config:
+  minute: {{ .Values.kongPlugins.rateLimit.contactPerMinute }}
+  policy: local
+  limit_by: ip
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: pw-request-size
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+plugin: request-size-limiting
+config:
+  allowed_payload_size: {{ .Values.kongPlugins.requestSizeLimitMb }}
+  size_unit: megabytes
+{{- if .Values.kongPlugins.prometheus }}
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: pw-prometheus
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+plugin: prometheus
+config:
+  status_code_metrics: true
+  latency_metrics: true
+  bandwidth_metrics: true
+  upstream_health_metrics: true
+{{- end }}
+{{- end }}

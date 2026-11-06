@@ -1,0 +1,104 @@
+# =============================================================================
+# KONG API GATEWAY — chạy KÈM bản dev:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d
+#
+# Đường đi của /api đổi thành:  trình duyệt → nginx (frontend) → Kong → FastAPI
+#
+# Kong làm gì ở đây (cấu hình trong infra/kong/kong.yaml, đồng bộ bằng decK):
+#   - rate limit: 120 request/phút/IP cho API, 5 lần/phút/IP cho form liên hệ
+#   - giới hạn kích thước body 1 MB
+#   - X-Request-ID xuyên suốt (plugin correlation-id)
+#   - metrics Prometheus ở kong:8100/metrics
+#
+# Giao diện (chỉ mở trên 127.0.0.1):
+#   Kong Manager  http://localhost:8002     Admin API  http://localhost:8001
+# Thêm khoảng 700 MB RAM.
+# =============================================================================
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-kong-db-env: &kong-db-env
+  KONG_DATABASE: postgres
+  KONG_PG_HOST: kong-db
+  KONG_PG_USER: kong
+  KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong_dev_password}
+
+services:
+  # nginx chuyển /api sang Kong thay vì gọi thẳng backend (biến được đọc khi container khởi động)
+  frontend:
+    environment:
+      API_UPSTREAM: kong:8000
+    depends_on:
+      kong: { condition: service_healthy }
+
+  kong-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD:-kong_dev_password}
+      POSTGRES_DB: kong
+    volumes: [kong_db_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong -d kong"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy: { resources: { limits: { memory: 128M } } }
+    restart: unless-stopped
+    logging: *logging
+
+  kong-migrations: # tạo schema lần đầu; các lần sau chỉ báo "already bootstrapped" rồi thoát
+    image: kong:3.9.1
+    command: kong migrations bootstrap
+    environment: *kong-db-env
+    depends_on:
+      kong-db: { condition: service_healthy }
+    restart: on-failure
+    logging: *logging
+
+  kong:
+    image: kong:3.9.1
+    environment:
+      <<: *kong-db-env
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
+      KONG_ADMIN_GUI_URL: http://localhost:8002
+      KONG_ADMIN_GUI_API_URL: http://localhost:8001
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+      # Kong đứng sau nginx: lấy IP thật của khách từ X-Forwarded-For để rate limit đúng từng người
+      KONG_TRUSTED_IPS: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      KONG_REAL_IP_HEADER: X-Forwarded-For
+      KONG_REAL_IP_RECURSIVE: "on"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    ports:
+      - "127.0.0.1:8001:8001" # Admin API — bản OSS không có xác thực nên chỉ mở trên localhost
+      - "127.0.0.1:8002:8002" # Kong Manager
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      kong-migrations: { condition: service_completed_successfully }
+    deploy: { resources: { limits: { memory: 512M } } }
+    restart: unless-stopped
+    logging: *logging
+
+  kong-config: # GitOps: đồng bộ infra/kong/kong.yaml vào Kong mỗi lần khởi động
+    image: kong/deck:v1.43.1
+    command: ["gateway", "sync", "/deck/kong.yaml", "--kong-addr", "http://kong:8001"]
+    volumes: [./infra/kong/kong.yaml:/deck/kong.yaml:ro]
+    depends_on:
+      kong: { condition: service_healthy }
+    restart: on-failure
+    logging: *logging
+
+volumes:
+  kong_db_data:

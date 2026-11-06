@@ -1,0 +1,22 @@
+Personal Web Platform đã được cài vào namespace {{ .Release.Namespace }}.
+
+Xem trạng thái pod:
+  kubectl -n {{ .Release.Namespace }} get pods -w
+
+{{- if .Values.ingress.enabled }}
+
+Truy cập qua Kong Ingress:
+  {{ .Values.global.externalUrl }}
+  (host {{ .Values.ingress.host }}, đi qua Service proxy của Kong)
+
+Kiểm tra request đi qua Kong + rate limit:
+  curl -sI {{ .Values.global.externalUrl }}/api/profile | grep -iE "via|x-request-id|ratelimit"
+{{- else }}
+
+Truy cập qua NodePort:
+  {{ .Values.global.externalUrl }}  (cổng {{ .Values.frontend.service.nodePort }} trên mọi node)
+{{- end }}
+
+Rollback nếu có lỗi:
+  helm -n {{ .Release.Namespace }} history {{ .Release.Name }}
+  helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }} <REVISION> --wait

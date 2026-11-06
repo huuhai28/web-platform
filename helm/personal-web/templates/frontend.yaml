@@ -8,14 +8,16 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  type: NodePort
+  type: {{ .Values.frontend.service.type }}
   selector:
     app: frontend
   ports:
     - name: http
       port: 80
       targetPort: 80
-      nodePort: {{ required "frontend.service.nodePort must be supplied from .env" .Values.frontend.service.nodePort }}
+      {{- if eq .Values.frontend.service.type "NodePort" }}
+      nodePort: {{ required "frontend.service.nodePort is required when service.type=NodePort" .Values.frontend.service.nodePort }}
+      {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -24,7 +26,9 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
+  {{- if not .Values.autoscaling.frontend.enabled }}
   replicas: {{ .Values.frontend.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       app: frontend
@@ -33,6 +37,10 @@ spec:
       labels:
         app: frontend
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: frontend
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"

@@ -1,0 +1,40 @@
+# Giá trị cho cluster lab (kubeadm, node 192.168.0.111). Dùng kèm values.yaml:
+#   helm upgrade --install personal-web helm/personal-web -n personal-web -f helm/personal-web/values-lab.yaml
+# Hoặc chạy scripts/k8s-lab-deploy.sh (cài Kong Ingress Controller + chart này).
+#
+# Truy cập: http://personal-web.192.168.0.111.nip.io:30080
+#   nip.io là DNS công khai, tự trả về IP nằm trong tên miền → không cần sửa file hosts.
+#   30080 là NodePort của Service proxy Kong (đặt trong scripts/k8s-lab-deploy.sh).
+
+global:
+  externalUrl: http://personal-web.192.168.0.111.nip.io:30080
+
+ingress:
+  enabled: true
+  className: kong
+  host: personal-web.192.168.0.111.nip.io
+
+frontend:
+  replicas: 2
+  service:
+    type: ClusterIP # vào qua Kong Ingress, không mở NodePort riêng
+  image:
+    repository: ghcr.io/huuhai28/web-platform/frontend
+    tag: latest # nên đổi thành commit SHA (7 ký tự) để deploy bất biến, rollback chính xác
+    pullPolicy: Always
+
+backend:
+  replicas: 2
+  image:
+    repository: ghcr.io/huuhai28/web-platform/backend
+    tag: latest
+    pullPolicy: Always
+  config:
+    contactReceiverEmail: nguyenhai281103@gmail.com # trong cluster lab email đi vào Mailpit, không gửi thật
+
+autoscaling:
+  backend:
+    enabled: true # cần metrics-server; script deploy sẽ kiểm tra
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70

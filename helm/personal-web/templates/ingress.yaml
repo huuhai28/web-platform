@@ -1,0 +1,67 @@
+{{- if .Values.ingress.enabled }}
+{{- $host := required "ingress.host is required when ingress.enabled=true" .Values.ingress.host }}
+{{- $common := "pw-request-id,pw-request-size" }}
+{{- if .Values.kongPlugins.prometheus }}{{- $common = printf "%s,pw-prometheus" $common }}{{- end }}
+# Trang web + Keycloak (/auth) đi qua nginx của frontend
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: personal-web
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+  annotations:
+    konghq.com/plugins: {{ $common | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: frontend, port: { number: 80 } }
+---
+# /api đi thẳng từ Kong tới backend (không qua nginx), có rate limit chung cho API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: personal-web-api
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+  annotations:
+    konghq.com/plugins: {{ printf "%s,pw-api-rate-limit" $common | quote }}
+    konghq.com/strip-path: "false"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: backend, port: { number: 8000 } }
+---
+# Form liên hệ: giới hạn chặt hơn (chống spam)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: personal-web-contact
+  labels: { app.kubernetes.io/managed-by: {{ .Release.Service }} }
+  annotations:
+    konghq.com/plugins: {{ printf "%s,pw-contact-rate-limit" $common | quote }}
+    konghq.com/strip-path: "false"
+    konghq.com/methods: "POST"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /api/contact
+            pathType: Exact
+            backend:
+              service: { name: backend, port: { number: 8000 } }
+{{- end }}

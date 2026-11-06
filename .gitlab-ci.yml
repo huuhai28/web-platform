@@ -57,6 +57,7 @@ validate:compose:
     - docker compose -f docker-compose.yml config --quiet
     # File mẫu có đủ biến bắt buộc nên dùng được để kiểm tra cú pháp bản prod
     - docker compose -f docker-compose.prod.yml --env-file .env.prod.example config --quiet
+    - docker compose -f docker-compose.yml -f docker-compose.gateway.yml config --quiet
     - echo "Compose dev + prod hợp lệ"
 
 validate:helm:
@@ -70,6 +71,7 @@ validate:helm:
         --set frontend.service.nodePort=30777
         --set-string backend.config.contactReceiverEmail=ci@example.com"
     - helm lint helm/personal-web $HELM_ARGS
+    - helm lint helm/personal-web -f helm/personal-web/values-lab.yaml
     - helm template personal-web helm/personal-web --namespace personal-web $HELM_ARGS > rendered.yaml
     - test -s rendered.yaml
   artifacts:

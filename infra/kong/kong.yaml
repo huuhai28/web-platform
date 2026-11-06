@@ -1,0 +1,48 @@
+# Cấu hình Kong dạng khai báo (decK) cho bản Docker Compose. Job "kong-config" chạy
+# `deck gateway sync` file này mỗi lần khởi động → cấu hình gateway nằm trong Git (GitOps).
+# Sửa trên Kong Manager cũng được, nhưng lần sync sau sẽ đưa về đúng file này.
+# (Trên Kubernetes, cùng các plugin này được khai báo bằng KongPlugin trong Helm chart.)
+_format_version: "3.0"
+
+services:
+  - name: portfolio-api
+    url: http://backend:8000
+    connect_timeout: 5000
+    read_timeout: 30000
+    write_timeout: 30000
+    retries: 2
+    tags: [portfolio]
+    routes:
+      - name: api
+        paths: [/api]
+        strip_path: false
+        preserve_host: true
+        tags: [portfolio]
+      - name: contact-form
+        paths: [/api/contact]
+        methods: [POST]
+        strip_path: false
+        preserve_host: true
+        tags: [portfolio]
+        plugins:
+          # Form liên hệ: mỗi IP tối đa 5 lần/phút
+          - name: rate-limiting
+            config: { minute: 5, policy: local, limit_by: ip }
+    plugins:
+      # Toàn bộ API: mỗi IP tối đa 120 request/phút
+      - name: rate-limiting
+        config: { minute: 120, policy: local, limit_by: ip }
+      - name: request-size-limiting
+        config: { allowed_payload_size: 1, size_unit: megabytes }
+
+plugins:
+  # Giữ X-Request-ID mà nginx gửi xuống (hoặc tự sinh) và trả về cho client
+  - name: correlation-id
+    config: { header_name: X-Request-ID, generator: uuid, echo_downstream: true }
+  # Metrics cho Prometheus (cổng status 8100): kong_http_requests_total, kong_request_latency_ms...
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true

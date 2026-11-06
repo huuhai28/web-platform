@@ -36,7 +36,9 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
+  {{- if not .Values.autoscaling.backend.enabled }}
   replicas: {{ .Values.backend.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       app: backend
@@ -45,6 +47,10 @@ spec:
       labels:
         app: backend
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
@@ -63,10 +69,17 @@ spec:
                   key: postgres-password
             - name: DATABASE_URL
               value: postgresql+psycopg://postgres:$(POSTGRES_PASSWORD)@postgres:5432/portfolio
+          # ready = DB + Redis trả lời → mới nhận traffic; live = process còn sống → không thì restart
           readinessProbe:
-            httpGet: { path: /api/health, port: 8000 }
+            httpGet: { path: /api/health/ready, port: 8000 }
             initialDelaySeconds: 8
             periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /api/health/live, port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 4
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
 ---
@@ -86,6 +99,10 @@ spec:
       labels:
         app: worker
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: worker
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"

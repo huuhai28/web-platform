@@ -20,7 +20,8 @@ xác thực OIDC, hàng đợi bất đồng bộ đến CI/CD, HTTPS, hardening
 |---|---|
 | **Container** | 7 service bằng Docker Compose; image nhỏ (frontend 74 MB); backend chạy user thường; healthcheck, giới hạn RAM, xoay vòng log |
 | **CI/CD** | Cùng một pipeline viết cho **GitHub Actions** và **GitLab CI**: validate (compose, Helm, kubeconform) → test (pytest, kiểm tra JS/bản dịch) → build 3 image song song → Trivy scan → deploy qua SSH (bấm tay hoặc tự động), có rollback theo commit SHA |
-| **Kubernetes** | Helm chart (Deployment, StatefulSet + PVC, Service, ConfigMap, Secret có sẵn) + manifest Kustomize; job `deploy:k8s` dùng `helm upgrade --atomic` |
+| **Kubernetes / Helm** | Helm chart: Deployment, StatefulSet + PVC, **Ingress qua Kong Ingress Controller**, **KongPlugin** (rate limit, request ID, giới hạn body, metrics), **HPA**, readiness/liveness probe, `values-lab.yaml` cho cluster lab; script deploy 1 lệnh tự kiểm tra kết quả; `helm upgrade --atomic` tự rollback khi lỗi |
+| **API Gateway (Kong)** | Bản Compose: nginx → **Kong** → FastAPI, Kong Manager, cấu hình khai báo trong Git đồng bộ bằng **decK** (GitOps); đã kiểm chứng rate limit 429, request ID xuyên suốt, metrics theo route |
 | **Networking / TLS** | Caddy tự cấp HTTPS Let's Encrypt, HSTS, HTTP/3; Nginx reverse proxy `/api`, `/auth`, lấy IP thật sau proxy |
 | **Identity** | Keycloak OIDC Authorization Code + **PKCE tự viết bằng JS thuần**, phân quyền theo realm role, chống brute-force |
 | **Security** | CSP chặt (không inline script/style), chặn trang admin Keycloak ra Internet (vào qua SSH tunnel), user DB riêng từng service, rate limit form, không có mật khẩu mặc định ở production, UFW + fail2ban |
@@ -123,16 +124,22 @@ Cấu hình (Settings → Secrets and variables → Actions) — **Secrets:** `S
 `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`; **Variables:** `PUBLIC_URL`, `AUTO_DEPLOY`.
 File `.env.prod` (bí mật) chỉ nằm trên VPS, pipeline không bao giờ đọc hay chép nó.
 
-## Kubernetes
+## Kong API Gateway (Docker Compose)
 
 ```bash
-helm upgrade --install personal-web ./helm/personal-web -n personal-web --create-namespace \
-  --set-string global.externalUrl=http://<node-ip>:30777 --set frontend.service.nodePort=30777 \
-  --set-string backend.config.contactReceiverEmail=you@example.com
+docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d
 ```
 
-Hướng dẫn đầy đủ (tạo Secret, đổi image, rollback): [helm/personal-web/README.md](helm/personal-web/README.md).
-Manifest thuần (Kustomize) cho Minikube: `kubectl apply -k k8s/base`.
+Kong Manager: http://localhost:8002 · cấu hình gateway: [infra/kong/kong.yaml](infra/kong/kong.yaml) (decK sync mỗi lần khởi động).
+
+## Kubernetes + Helm + Kong Ingress
+
+```bash
+NODE_IP=192.168.0.111 bash scripts/k8s-lab-deploy.sh   # cài Kong Ingress Controller + chart, tự kiểm tra
+```
+
+Hướng dẫn đầy đủ (chuẩn bị cluster, GHCR, HPA, xử lý sự cố): **[docs/KUBERNETES.md](docs/KUBERNETES.md)** ·
+chart: [helm/personal-web/README.md](helm/personal-web/README.md) · manifest thuần (Kustomize): `kubectl apply -k k8s/base`.
 
 ## Ghi chú kỹ thuật — những vấn đề đã gặp
 
@@ -162,12 +169,14 @@ personal-web-platform/
 ├── infra/
 │   ├── caddy/Caddyfile        # HTTPS, chặn đường dẫn admin
 │   ├── keycloak/              # Dockerfile (optimized) + realm dev/prod
+│   ├── kong/kong.yaml         # cấu hình Kong khai báo (decK)
 │   └── postgres/              # script tạo DB/user
-├── helm/personal-web/         # Helm chart
+├── helm/personal-web/         # Helm chart (+ values-lab.yaml: Kong Ingress, HPA)
 ├── k8s/base/                  # Kustomize manifests
-├── scripts/                   # cài VPS, sinh env, backup, test E2E/load test
-├── docs/DEPLOY.md, TESTING.md
+├── scripts/                   # cài VPS, deploy K8s lab, sinh env, backup, xuất OpenAPI, test E2E/load test
+├── docs/DEPLOY.md, KUBERNETES.md, TESTING.md
 ├── docker-compose.yml         # dev
+├── docker-compose.gateway.yml # thêm Kong API Gateway vào bản dev
 ├── docker-compose.prod.yml    # production
 ├── .github/workflows/ci.yml   # GitHub Actions
 └── .gitlab-ci.yml             # GitLab CI (tương đương)
